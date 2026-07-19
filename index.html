@@ -2,13 +2,178 @@
 <html lang="ja">
     <head>
         <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+        <title>日本語ループ — 英文から日本語の文を組み立てる反復学習アプリ</title>
+        <meta
+            name="description"
+            content="英語の例文から日本語の文をチャンクごとに組み立てる無料の反復学習アプリ。Practise Japanese word order, particles and verb forms through short sentence-building drills."
+        />
+        <meta name="author" content="Jared Turck" />
+        <meta name="creator" content="Jared Turck" />
+        <meta name="publisher" content="Jared Turck" />
+        <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+        <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+        <meta name="bingbot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+        <meta name="referrer" content="strict-origin-when-cross-origin" />
+        <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
         <meta name="theme-color" content="#090b10" />
-        <meta name="description" content="日本語の文をすばやく組み立てる学習アプリ。" />
-        <title>日本語ループ</title>
+        <meta name="color-scheme" content="dark" />
+        <link rel="canonical" href="https://jaredturck.github.io/ja-learning/" />
+        <meta name="application-name" content="日本語ループ" />
+        <meta name="apple-mobile-web-app-title" content="日本語ループ" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="mobile-web-app-capable" content="yes" />
+
+        <link rel="icon" href="./favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="./android-chrome-192x192.png" />
+        <link rel="icon" type="image/png" sizes="512x512" href="./android-chrome-512x512.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+        <link rel="manifest" href="./site.webmanifest" />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="日本語ループ" />
+        <meta property="og:locale" content="ja_JP" />
+        <meta property="og:locale:alternate" content="en_GB" />
+        <meta property="og:title" content="日本語ループ — 日本語の文を組み立てる反復学習" />
+        <meta
+            property="og:description"
+            content="英語の例文を見ながら、日本語の文を意味のあるチャンクごとに組み立てる無料の反復学習アプリ。語順、助詞、活用、基本文型を短い選択式ドリルで練習できます。"
+        />
+        <meta property="og:url" content="https://jaredturck.github.io/ja-learning/" />
+        <meta property="og:image" content="https://jaredturck.github.io/ja-learning/og-image.png" />
+        <meta property="og:image:secure_url" content="https://jaredturck.github.io/ja-learning/og-image.png" />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="日本語ループ — 英文から日本語の文を組み立てる反復学習アプリ" />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="日本語ループ — 日本語の文を組み立てる反復学習" />
+        <meta
+            name="twitter:description"
+            content="英語の例文から日本語の文をチャンクごとに組み立て、語順・助詞・活用を反復練習する無料アプリ。"
+        />
+        <meta name="twitter:image" content="https://jaredturck.github.io/ja-learning/og-image.png" />
+        <meta name="twitter:image:alt" content="日本語ループの学習アプリ紹介画像" />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "Person",
+                        "@id": "https://jaredturck.github.io/ja-learning/#creator",
+                        "name": "Jared Turck",
+                        "url": "https://github.com/jaredturck",
+                        "sameAs": [
+                            "https://github.com/jaredturck"
+                        ]
+                    },
+                    {
+                        "@type": "WebSite",
+                        "@id": "https://jaredturck.github.io/ja-learning/#website",
+                        "url": "https://jaredturck.github.io/ja-learning/",
+                        "name": "日本語ループ",
+                        "alternateName": "Nihongo Loop",
+                        "description": "英語の例文から日本語の文を意味のあるチャンクごとに組み立てる反復学習アプリ。",
+                        "inLanguage": [
+                            "ja",
+                            "en"
+                        ],
+                        "creator": {
+                            "@id": "https://jaredturck.github.io/ja-learning/#creator"
+                        }
+                    },
+                    {
+                        "@type": "ImageObject",
+                        "@id": "https://jaredturck.github.io/ja-learning/#primary-image",
+                        "url": "https://jaredturck.github.io/ja-learning/og-image.png",
+                        "contentUrl": "https://jaredturck.github.io/ja-learning/og-image.png",
+                        "width": 1200,
+                        "height": 630,
+                        "caption": "日本語ループ — 英文から日本語の文を組み立てる反復学習アプリ"
+                    },
+                    {
+                        "@type": "WebPage",
+                        "@id": "https://jaredturck.github.io/ja-learning/#webpage",
+                        "url": "https://jaredturck.github.io/ja-learning/",
+                        "name": "日本語ループ — 英文から日本語の文を組み立てる反復学習アプリ",
+                        "description": "英語の例文を見ながら、日本語の文を意味のあるチャンクごとに組み立てる無料の反復学習アプリ。",
+                        "isPartOf": {
+                            "@id": "https://jaredturck.github.io/ja-learning/#website"
+                        },
+                        "primaryImageOfPage": {
+                            "@id": "https://jaredturck.github.io/ja-learning/#primary-image"
+                        },
+                        "mainEntity": {
+                            "@id": "https://jaredturck.github.io/ja-learning/#application"
+                        },
+                        "inLanguage": [
+                            "ja",
+                            "en"
+                        ],
+                        "dateModified": "2026-07-19"
+                    },
+                    {
+                        "@type": "WebApplication",
+                        "@id": "https://jaredturck.github.io/ja-learning/#application",
+                        "url": "https://jaredturck.github.io/ja-learning/",
+                        "name": "日本語ループ",
+                        "alternateName": "Nihongo Loop",
+                        "description": "英語の例文から日本語の文をチャンクごとに組み立て、語順、助詞、活用、基本文型を反復練習するウェブアプリ。",
+                        "applicationCategory": "EducationalApplication",
+                        "applicationSubCategory": "Language learning",
+                        "operatingSystem": "Any",
+                        "browserRequirements": "JavaScriptを有効にした最新のウェブブラウザが必要です。",
+                        "isAccessibleForFree": true,
+                        "isFamilyFriendly": true,
+                        "inLanguage": [
+                            "ja",
+                            "en"
+                        ],
+                        "learningResourceType": "Interactive sentence-building exercise",
+                        "interactivityType": "active",
+                        "educationalLevel": "Beginner to early intermediate Japanese",
+                        "teaches": [
+                            "Japanese sentence structure",
+                            "Japanese word order",
+                            "Japanese particles",
+                            "Japanese verb forms",
+                            "Japanese grammar",
+                            "Japanese vocabulary"
+                        ],
+                        "featureList": [
+                            "Chunk-by-chunk Japanese sentence construction",
+                            "Immediate correct-answer feedback",
+                            "Full-sentence repetition after mistakes",
+                            "Sequential levels with saved progress"
+                        ],
+                        "creator": {
+                            "@id": "https://jaredturck.github.io/ja-learning/#creator"
+                        },
+                        "offers": {
+                            "@type": "Offer",
+                            "price": "0",
+                            "priceCurrency": "USD",
+                            "availability": "https://schema.org/InStock"
+                        }
+                    }
+                ]
+            }
+        </script>
     </head>
     <body>
         <div id="root"></div>
+        <noscript>
+            <main>
+                <h1>日本語ループ</h1>
+                <p>この学習アプリを使用するには、ブラウザでJavaScriptを有効にしてください。</p>
+            </main>
+        </noscript>
         <script type="module" src="/src/main.tsx"></script>
     </body>
 </html>

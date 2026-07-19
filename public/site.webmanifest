@@ -1,0 +1,29 @@
+{
+    "id": "./",
+    "name": "日本語ループ",
+    "short_name": "日本語ループ",
+    "description": "英語の例文から日本語の文を意味のあるチャンクごとに組み立てる反復学習アプリ。",
+    "lang": "ja",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#090b10",
+    "theme_color": "#090b10",
+    "categories": [
+        "education"
+    ],
+    "icons": [
+        {
+            "src": "./android-chrome-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "./android-chrome-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        }
+    ]
+}
