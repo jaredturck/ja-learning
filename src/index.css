@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@theme {
+    --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+    --font-japanese: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+}
+
+:root {
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    color: #0f172a;
+    background: #f7f7fb;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    min-width: 320px;
+    min-height: 100vh;
+    margin: 0;
+}
+
+button {
+    font: inherit;
+}
+
+.bg-app {
+    background:
+        radial-gradient(circle at 12% 0%, rgb(237 233 254 / 0.75), transparent 30rem),
+        radial-gradient(circle at 100% 16%, rgb(207 250 254 / 0.65), transparent 28rem),
+        linear-gradient(180deg, #fafaff 0%, #f7f8fb 55%, #f4f6f9 100%);
+}
+
+.font-japanese {
+    font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+}
+
+@keyframes chunk-in {
+    0% {
+        opacity: 0;
+        transform: translateY(8px) scale(0.96);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.animate-chunk-in {
+    animation: chunk-in 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
