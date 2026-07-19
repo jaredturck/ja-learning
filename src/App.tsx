@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Check, RotateCcw } from 'lucide-react'
 import { levels } from './levels'
 import type { QuizLevel, QuizSentence, SentenceChunk } from './levels'
 
@@ -52,6 +52,20 @@ function get_sentence_options(chunk: SentenceChunk) {
 
 function get_completed_count(level: QuizLevel, completed_sentence_ids: string[]) {
     return level.sentences.filter((sentence) => completed_sentence_ids.includes(sentence.id)).length
+}
+
+function get_level_completed_sentence_ids(level: QuizLevel | undefined, completed_sentence_ids: string[]) {
+    if (!level) {
+        return []
+    }
+
+    return level.sentences
+        .filter((sentence) => completed_sentence_ids.includes(sentence.id))
+        .map((sentence) => sentence.id)
+}
+
+function get_sequential_sentence_order(level: QuizLevel) {
+    return level.sentences.map((_, index) => index)
 }
 
 function get_sentence_order(level: QuizLevel | undefined, completed_sentence_ids: string[]) {
@@ -290,7 +304,12 @@ function LevelComplete({ level_index, has_next_level, on_continue }: {
 function App() {
     const [progress, set_progress] = useState<ProgressState>(get_saved_progress)
     const [active_level_index, set_active_level_index] = useState(() => get_initial_level_index(progress.completed_sentence_ids))
-    const [sentence_order, set_sentence_order] = useState<number[]>(() => get_sentence_order(levels[active_level_index], progress.completed_sentence_ids))
+    const [level_completed_sentence_ids, set_level_completed_sentence_ids] = useState(() =>
+        get_level_completed_sentence_ids(levels[active_level_index], progress.completed_sentence_ids),
+    )
+    const [sentence_order, set_sentence_order] = useState<number[]>(() =>
+        get_sentence_order(levels[active_level_index], level_completed_sentence_ids),
+    )
     const [sentence_order_index, set_sentence_order_index] = useState(0)
     const [current_chunk_index, set_current_chunk_index] = useState(0)
     const [options, set_options] = useState<QuizOption[]>([])
@@ -303,7 +322,7 @@ function App() {
     const active_level = levels[active_level_index]
     const sentence_index = sentence_order[sentence_order_index] ?? 0
     const active_sentence = active_level?.sentences[sentence_index]
-    const completed_count = active_level ? get_completed_count(active_level, progress.completed_sentence_ids) : 0
+    const completed_count = active_level ? get_completed_count(active_level, level_completed_sentence_ids) : 0
     const is_level_complete = Boolean(active_level && completed_count === active_level.sentences.length)
 
     useEffect(() => {
@@ -344,7 +363,7 @@ function App() {
                 set_feedback_japanese('')
                 set_feedback_state(null)
                 set_is_locked(false)
-            }, 1000)
+            }, 3000)
             return
         }
 
@@ -355,6 +374,9 @@ function App() {
         set_feedback_state(sentence_is_complete ? 'complete' : 'correct')
 
         if (sentence_is_complete) {
+            set_level_completed_sentence_ids((current_sentence_ids) => [
+                ...new Set([...current_sentence_ids, active_sentence.id]),
+            ])
             set_progress((current_progress) => ({
                 completed_sentence_ids: [...new Set([...current_progress.completed_sentence_ids, active_sentence.id])],
             }))
@@ -405,11 +427,44 @@ function App() {
         set_is_locked(false)
     }
 
+    const handle_previous_level = () => {
+        if (active_level_index === 0) {
+            return
+        }
+
+        if (feedback_timeout.current !== null) {
+            window.clearTimeout(feedback_timeout.current)
+            feedback_timeout.current = null
+        }
+
+        const previous_level_index = active_level_index - 1
+        const previous_level = levels[previous_level_index]
+
+        set_active_level_index(previous_level_index)
+        set_level_completed_sentence_ids([])
+        set_sentence_order(get_sequential_sentence_order(previous_level))
+        set_sentence_order_index(0)
+        set_current_chunk_index(0)
+        set_option_seed((current_seed) => current_seed + 1)
+        set_feedback_japanese('')
+        set_feedback_state(null)
+        set_is_locked(false)
+    }
+
     const handle_next_level = () => {
         const next_level_index = Math.min(active_level_index + 1, levels.length - 1)
+        const next_level = levels[next_level_index]
+        const saved_sentence_ids = get_level_completed_sentence_ids(next_level, progress.completed_sentence_ids)
+        const should_replay_level = saved_sentence_ids.length === next_level.sentences.length
+        const next_sentence_ids = should_replay_level ? [] : saved_sentence_ids
 
         set_active_level_index(next_level_index)
-        set_sentence_order(get_sentence_order(levels[next_level_index], progress.completed_sentence_ids))
+        set_level_completed_sentence_ids(next_sentence_ids)
+        set_sentence_order(
+            should_replay_level
+                ? get_sequential_sentence_order(next_level)
+                : get_sentence_order(next_level, next_sentence_ids),
+        )
         set_sentence_order_index(0)
         set_current_chunk_index(0)
         set_option_seed((current_seed) => current_seed + 1)
@@ -440,7 +495,16 @@ function App() {
                 ) : active_sentence ? (
                     <>
                         <div className="relative mt-4 shrink-0 border-b border-slate-800 pb-4 text-center sm:mt-5 sm:pb-5">
-                            <h1 className="text-[clamp(1.65rem,3.5vw,3rem)] font-semibold leading-tight tracking-[-0.035em] text-white">
+                            <button
+                                aria-label="Previous level"
+                                className="absolute left-0 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl border border-slate-700 text-slate-500 transition hover:border-slate-600 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:border-slate-700 disabled:hover:text-slate-500"
+                                disabled={active_level_index === 0}
+                                onClick={handle_previous_level}
+                                type="button"
+                            >
+                                <ArrowLeft size={19} />
+                            </button>
+                            <h1 className="px-14 text-[clamp(1.65rem,3.5vw,3rem)] font-semibold leading-tight tracking-[-0.035em] text-white">
                                 {active_sentence.english}
                             </h1>
                             <button
