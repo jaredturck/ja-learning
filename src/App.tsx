@@ -151,19 +151,16 @@ function LevelStatus({ level, level_index, completed_count }: {
     )
 }
 
-function SentenceBuilder({ sentence, current_chunk_index, feedback_state }: {
+function SentenceBuilder({ sentence, current_chunk_index }: {
     sentence: QuizSentence
     current_chunk_index: number
-    feedback_state: 'correct' | 'wrong' | 'complete' | null
 }) {
     const text_size = get_sentence_text_size(sentence)
 
     return (
         <div
             aria-label="Japanese sentence under construction"
-            className={`flex min-h-0 w-full flex-1 items-center justify-center transition-colors duration-150 ${
-                feedback_state === 'wrong' ? 'text-red-300' : 'text-slate-100'
-            }`}
+            className="flex min-h-0 w-full flex-1 items-center justify-center text-slate-100"
         >
             <div className="flex max-w-full flex-wrap items-end justify-center gap-x-4 gap-y-3 sm:gap-x-6">
                 {sentence.chunks.map((chunk, chunk_index) => {
@@ -226,7 +223,8 @@ function OptionGrid({ options, feedback_japanese, feedback_state, is_locked, on_
         <div className="grid h-[clamp(13rem,32vh,18rem)] shrink-0 grid-cols-2 gap-3 sm:gap-4">
             {options.map((option, option_index) => {
                 const is_selected = option.japanese === feedback_japanese
-                const is_correct_feedback = is_selected && feedback_state !== 'wrong'
+                const is_revealed_correct = option.is_correct && feedback_state === 'wrong'
+                const is_correct_feedback = (is_selected && feedback_state !== 'wrong') || is_revealed_correct
                 const is_wrong_feedback = is_selected && feedback_state === 'wrong'
 
                 return (
@@ -238,7 +236,7 @@ function OptionGrid({ options, feedback_japanese, feedback_state, is_locked, on_
                                 : is_wrong_feedback
                                     ? 'border-red-400 bg-red-400/12 text-red-200'
                                     : 'border-slate-700 bg-slate-900/85 text-slate-100 hover:border-violet-500 hover:bg-slate-900 active:scale-[0.985]'
-                        } ${is_locked && !is_selected ? 'opacity-45' : ''}`}
+                        } ${is_locked && !is_selected && !is_revealed_correct ? 'opacity-45' : ''}`}
                         disabled={is_locked}
                         key={`${option.japanese}-${option_index}`}
                         onClick={() => on_select_option(option)}
@@ -346,7 +344,7 @@ function App() {
                 set_feedback_japanese('')
                 set_feedback_state(null)
                 set_is_locked(false)
-            }, 450)
+            }, 1000)
             return
         }
 
@@ -458,7 +456,6 @@ function App() {
                         <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-3 sm:py-5">
                             <SentenceBuilder
                                 current_chunk_index={current_chunk_index}
-                                feedback_state={feedback_state}
                                 sentence={active_sentence}
                             />
                             <ChunkProgress
