@@ -9,10 +9,116 @@ interface ProgressState {
 
 interface QuizOption {
     japanese: string
+    english: string
     is_correct: boolean
 }
 
 const progress_storage_key = 'nihongo-loop-progress'
+
+const chunk_english_overrides: Record<string, string> = {
+    '「おはよう」': '“Good morning”',
+    '「お願いします」': '“Please”',
+    '「ここに来てください」': '“Please come here”',
+    '「さようなら」': '“Goodbye”',
+    '「すみません」': '“Excuse me / sorry”',
+    '「コーヒーが好きです」': '“I like coffee”',
+    '「今日は休みです」': '“Today is a day off”',
+    '「今日は寒いです」': '“It is cold today”',
+    '「名前を書いてください」': '“Please write your name”',
+    '「待ってください」': '“Please wait”',
+    '「日本に行きます」': '“I will go to Japan”',
+    '「日本語を勉強します」': '“I study Japanese”',
+    '「映画が好きです」': '“I like movies”',
+    '「本を読みました」': '“I read a book”',
+    '「本を読みます」': '“I read a book”',
+    '「東京に住んでいます」': '“I live in Tokyo”',
+    '「水を飲みます」': '“I drink water”',
+    '「水を飲んでください」': '“Please drink water”',
+    '「猫がいます」': '“There is a cat”',
+    '「駅に行きます」': '“I go to the station”',
+    '「魚を食べません」': '“I do not eat fish”',
+    あそこ: 'over there',
+    ありませんでした: 'did not exist [thing]',
+    い: '[い-adjective ending]',
+    いつも: 'always',
+    いません: 'does not exist [living]',
+    いませんでした: 'did not exist [living]',
+    うどん: 'udon',
+    ことができます: 'can / be able to',
+    ご飯: 'rice / a meal',
+    しましょう: 'let’s do',
+    そこ: 'there',
+    たら: 'if / when',
+    てはいけません: 'must not',
+    ても: 'even if',
+    てもいいです: 'may / allowed to',
+    と言いました: 'said',
+    どの: 'which [before a noun]',
+    どんな: 'what kind of',
+    ね: '[seeking agreement]',
+    はずです: 'should / expected to',
+    ほしいです: 'want [a thing]',
+    よ: '[emphasis / informing]',
+    ジュース: 'juice',
+    '一冊、': 'one volume,',
+    '三冊、': 'three volumes,',
+    '二本、': 'two long objects,',
+    '二枚、': 'two flat objects,',
+    作らない: 'do not make',
+    勉強しない: 'do not study',
+    午後三時: '3 p.m.',
+    古い: 'old',
+    暑い: 'hot [weather]',
+    書いた: 'wrote',
+    書かない: 'do not write',
+    書く: 'write',
+    来ます: 'come [polite]',
+    火曜日: 'Tuesday',
+    聞いた: 'heard / listened',
+    聞いて: 'listen and / listening',
+    聞かない: 'do not listen / ask',
+    聞く: 'listen / ask',
+    行きました: 'went',
+    行きます: 'go [polite]',
+    買わない: 'do not buy',
+    は: '[topic]',
+    が: '[subject]',
+    を: '[object]',
+    に: '[time / destination / location]',
+    で: '[action place / means]',
+    と: 'and / [with / quote]',
+    の: '[linking / possessive]',
+    も: 'also',
+    へ: '[direction]',
+    から: 'from / because / after',
+    まで: 'to / until',
+    か: '[question]',
+}
+
+function get_chunk_english_lookup() {
+    const english_counts = new Map<string, Map<string, number>>()
+
+    levels.forEach((level) => {
+        level.sentences.forEach((sentence) => {
+            sentence.chunks.forEach((chunk) => {
+                const chunk_counts = english_counts.get(chunk.japanese) ?? new Map<string, number>()
+                chunk_counts.set(chunk.english, (chunk_counts.get(chunk.english) ?? 0) + 1)
+                english_counts.set(chunk.japanese, chunk_counts)
+            })
+        })
+    })
+
+    return new Map(
+        [...english_counts.entries()].map(([japanese, chunk_counts]) => {
+            const english = chunk_english_overrides[japanese]
+                ?? [...chunk_counts.entries()].sort((first, second) => second[1] - first[1])[0]?.[0]
+                ?? ''
+            return [japanese, english]
+        }),
+    )
+}
+
+const chunk_english_lookup = get_chunk_english_lookup()
 
 function shuffle_items<T>(items: T[]) {
     const shuffled_items = [...items]
@@ -43,8 +149,12 @@ function get_sentence_options(chunk: SentenceChunk) {
     )
     const selected_distractors = shuffle_items(unique_distractors).slice(0, 3)
     const options: QuizOption[] = [
-        { japanese: chunk.japanese, is_correct: true },
-        ...selected_distractors.map((japanese) => ({ japanese, is_correct: false })),
+        { japanese: chunk.japanese, english: chunk.english, is_correct: true },
+        ...selected_distractors.map((japanese) => ({
+            japanese,
+            english: chunk_english_lookup.get(japanese) ?? '',
+            is_correct: false,
+        })),
     ]
 
     return shuffle_items(options)
@@ -129,8 +239,8 @@ function EmptyCurriculum() {
     return (
         <main className="flex h-dvh items-center justify-center bg-app px-6 text-center text-slate-100">
             <div>
-                <p className="text-2xl font-semibold">No levels found</p>
-                <p className="mt-2 text-slate-500">Add curriculum data to src/levels.ts.</p>
+                <p className="text-2xl font-semibold">レベルがありません</p>
+                <p className="mt-2 text-slate-500">src/levels.ts に教材を追加してください。</p>
             </div>
         </main>
     )
@@ -147,9 +257,7 @@ function LevelStatus({ level, level_index, completed_count }: {
         <div className="shrink-0">
             <div className="flex items-center justify-between gap-4 text-sm">
                 <div className="min-w-0">
-                    <span className="font-semibold text-violet-400">LEVEL {get_level_number(level_index)}</span>
-                    <span className="mx-2 text-slate-700">/</span>
-                    <span className="truncate text-slate-400">{level.title}</span>
+                    <span className="font-semibold text-violet-400">レベル {get_level_number(level_index)}</span>
                 </div>
                 <span className="shrink-0 tabular-nums text-slate-500">
                     {Math.min(completed_count + 1, level.sentences.length)} / {level.sentences.length}
@@ -173,7 +281,7 @@ function SentenceBuilder({ sentence, current_chunk_index }: {
 
     return (
         <div
-            aria-label="Japanese sentence under construction"
+            aria-label="作成中の日本語文"
             className="flex min-h-0 w-full flex-1 items-center justify-center text-slate-100"
         >
             <div className="flex max-w-full flex-wrap items-end justify-center gap-x-4 gap-y-3 sm:gap-x-6">
@@ -240,10 +348,11 @@ function OptionGrid({ options, feedback_japanese, feedback_state, is_locked, on_
                 const is_revealed_correct = option.is_correct && feedback_state === 'wrong'
                 const is_correct_feedback = (is_selected && feedback_state !== 'wrong') || is_revealed_correct
                 const is_wrong_feedback = is_selected && feedback_state === 'wrong'
+                const show_english = feedback_state === 'wrong' && (is_wrong_feedback || is_revealed_correct)
 
                 return (
                     <button
-                        aria-label={`Option ${option_index + 1}: ${option.japanese}`}
+                        aria-label={`選択肢 ${option_index + 1}：${option.japanese}`}
                         className={`group relative min-h-0 min-w-0 overflow-hidden rounded-2xl border px-3 transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 sm:rounded-3xl sm:px-6 ${
                             is_correct_feedback
                                 ? 'border-emerald-400 bg-emerald-400/12 text-emerald-200'
@@ -259,11 +368,20 @@ function OptionGrid({ options, feedback_japanese, feedback_state, is_locked, on_
                         <span className="absolute left-3 top-3 flex h-6 w-6 items-center justify-center rounded-md border border-slate-700 text-xs font-medium text-slate-500 sm:left-4 sm:top-4">
                             {option_index + 1}
                         </span>
-                        <span
-                            className="font-japanese block break-all font-medium leading-tight tracking-tight"
-                            style={{ fontSize: get_option_text_size(option.japanese) }}
-                        >
-                            {option.japanese}
+                        <span className="flex h-full flex-col items-center justify-center">
+                            <span
+                                className="font-japanese block break-all font-medium leading-tight tracking-tight"
+                                style={{ fontSize: get_option_text_size(option.japanese) }}
+                            >
+                                {option.japanese}
+                            </span>
+                            <span
+                                className={`mt-2 min-h-5 text-center text-sm font-medium transition-opacity duration-150 sm:text-base ${
+                                    show_english ? 'opacity-100' : 'opacity-0'
+                                }`}
+                            >
+                                {show_english ? option.english : ''}
+                            </span>
                         </span>
                     </button>
                 )
@@ -283,10 +401,10 @@ function LevelComplete({ level_index, has_next_level, on_continue }: {
                 <Check size={32} strokeWidth={2.5} />
             </div>
             <p className="mt-6 text-sm font-semibold tracking-[0.18em] text-violet-400">
-                LEVEL {get_level_number(level_index)} COMPLETE
+                レベル {get_level_number(level_index)} 完了
             </p>
             <p className="mt-3 text-3xl font-semibold text-slate-100 sm:text-5xl">
-                {has_next_level ? 'Next level ready.' : 'Curriculum complete.'}
+                {has_next_level ? '次のレベルへ進めます。' : 'すべてのレベルを完了しました。'}
             </p>
             {has_next_level ? (
                 <button
@@ -294,7 +412,7 @@ function LevelComplete({ level_index, has_next_level, on_continue }: {
                     onClick={on_continue}
                     type="button"
                 >
-                    Continue
+                    次へ
                 </button>
             ) : null}
         </div>
@@ -496,7 +614,7 @@ function App() {
                     <>
                         <div className="relative mt-4 shrink-0 border-b border-slate-800 pb-4 text-center sm:mt-5 sm:pb-5">
                             <button
-                                aria-label="Previous level"
+                                aria-label="前のレベル"
                                 className="absolute left-0 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl border border-slate-700 text-slate-500 transition hover:border-slate-600 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:border-slate-700 disabled:hover:text-slate-500"
                                 disabled={active_level_index === 0}
                                 onClick={handle_previous_level}
@@ -508,7 +626,7 @@ function App() {
                                 {active_sentence.english}
                             </h1>
                             <button
-                                aria-label="Restart sentence"
+                                aria-label="文を最初からやり直す"
                                 className="absolute right-0 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl border border-slate-700 text-slate-500 transition hover:border-slate-600 hover:text-slate-200"
                                 onClick={handle_restart_sentence}
                                 type="button"
