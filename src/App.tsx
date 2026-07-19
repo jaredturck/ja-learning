@@ -182,7 +182,7 @@ function LevelRail({ active_level_index, completed_sentence_ids, on_select_level
 }) {
     return (
         <aside className="hidden w-72 shrink-0 lg:block">
-            <div className="sticky top-6 rounded-[1.75rem] border border-slate-200/80 bg-white p-4 shadow-[0_24px_70px_-48px_rgba(15,23,42,0.35)]">
+            <div className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto rounded-[1.75rem] border border-slate-200/80 bg-white p-4 shadow-[0_24px_70px_-48px_rgba(15,23,42,0.35)]">
                 <div className="px-3 pb-4 pt-2">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Curriculum</p>
                     <h2 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-slate-950">Learning path</h2>
