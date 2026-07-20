@@ -20,8 +20,8 @@ export interface QuizLevel {
 export const levels: QuizLevel[] = [
     {
         id: "level-001",
-        title: "This is X",
-        description: "Build the fixed pattern これは X です with familiar concrete nouns.",
+        title: "これは〜です",
+        description: "身近な名詞を使って「これは〜です」の基本文型を練習します。",
         sentences: [
             {
                 id: "l001-s01",
@@ -87,8 +87,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-002",
-        title: "This, that, over there",
-        description: "Contrast これ, それ, and あれ while keeping the rest of the sentence stable.",
+        title: "これ・それ・あれ",
+        description: "文の形を保ちながら「これ」「それ」「あれ」を使い分けます。",
         sentences: [
             {
                 id: "l002-s01",
@@ -154,8 +154,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-003",
-        title: "X is Y",
-        description: "Use は to identify people and animals by name or category.",
+        title: "〜は〜です",
+        description: "「は」を使い、人や動物の名前や種類を表します。",
         sentences: [
             {
                 id: "l003-s01",
@@ -221,8 +221,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-004",
-        title: "People and roles",
-        description: "Recycle X は Y です with names, nationalities, and occupations.",
+        title: "人と職業",
+        description: "名前、国籍、職業を使って「〜は〜です」を練習します。",
         sentences: [
             {
                 id: "l004-s01",
@@ -288,8 +288,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-005",
-        title: "Possession with の",
-        description: "Link two nouns with の to express ownership and close relationships.",
+        title: "「の」で表す所有",
+        description: "名詞を「の」でつなぎ、所有や身近な関係を表します。",
         sentences: [
             {
                 id: "l005-s01",
@@ -367,8 +367,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-006",
-        title: "Also with も",
-        description: "Replace は with も when the new topic shares the same description.",
+        title: "「も」で表す共通点",
+        description: "同じ説明が当てはまるとき、「は」を「も」に置き換えます。",
         sentences: [
             {
                 id: "l006-s01",
@@ -436,8 +436,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-007",
-        title: "Is not",
-        description: "Make polite negative noun sentences with ではありません.",
+        title: "否定の文",
+        description: "「ではありません」を使って名詞文を丁寧に否定します。",
         sentences: [
             {
                 id: "l007-s01",
@@ -505,8 +505,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-008",
-        title: "Was and was not",
-        description: "Move noun sentences into the past with でした and ではありませんでした.",
+        title: "過去と過去の否定",
+        description: "「でした」と「ではありませんでした」で名詞文を過去にします。",
         sentences: [
             {
                 id: "l008-s01",
@@ -574,8 +574,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-009",
-        title: "Basic questions",
-        description: "Use か and basic question words to ask for identity and selection.",
+        title: "基本の疑問文",
+        description: "「か」と基本的な疑問詞を使い、正体や選択を尋ねます。",
         sentences: [
             {
                 id: "l009-s01",
@@ -649,8 +649,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-010",
-        title: "Identity checkpoint",
-        description: "Mix identification, possession, negation, past tense, and questions.",
+        title: "名詞文のまとめ",
+        description: "名詞文、所有、否定、過去、疑問文を組み合わせます。",
         sentences: [
             {
                 id: "l010-s01",
@@ -751,8 +751,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-011",
-        title: "Objects and actions",
-        description: "Introduce を and polite action verbs with familiar objects.",
+        title: "物と動作",
+        description: "「を」と身近な物を使う丁寧な動詞文を学びます。",
         sentences: [
             {
                 id: "l011-s01",
@@ -830,8 +830,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-012",
-        title: "Matching objects and verbs",
-        description: "Recombine familiar nouns and verbs so meaning, not position, selects the next chunk.",
+        title: "物と動詞の組み合わせ",
+        description: "語順だけでなく意味を考え、名詞と動詞を正しく組み合わせます。",
         sentences: [
             {
                 id: "l012-s01",
@@ -909,8 +909,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-013",
-        title: "Where actions happen",
-        description: "Use で to mark the place where an action occurs.",
+        title: "動作をする場所",
+        description: "動作が行われる場所を「で」で示します。",
         sentences: [
             {
                 id: "l013-s01",
@@ -1000,8 +1000,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-014",
-        title: "Days and general times",
-        description: "Place broad time expressions before the action without a time particle.",
+        title: "曜日とおおまかな時間",
+        description: "助詞を付けない大まかな時間表現を動作の前に置きます。",
         sentences: [
             {
                 id: "l014-s01",
@@ -1085,8 +1085,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-015",
-        title: "Exact times with に",
-        description: "Use に after clock times and scheduled days.",
+        title: "「に」を使う時刻",
+        description: "時計の時刻や予定された曜日の後ろに「に」を付けます。",
         sentences: [
             {
                 id: "l015-s01",
@@ -1176,8 +1176,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-016",
-        title: "Polite past actions",
-        description: "Contrast ます with ました while keeping the verb stem unchanged.",
+        title: "丁寧形の過去",
+        description: "動詞の語幹を保ちながら「ます」と「ました」を使い分けます。",
         sentences: [
             {
                 id: "l016-s01",
@@ -1263,8 +1263,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-017",
-        title: "Polite negative actions",
-        description: "Use ません to say that an action does not happen.",
+        title: "丁寧形の否定",
+        description: "「ません」で動作をしないことを表します。",
         sentences: [
             {
                 id: "l017-s01",
@@ -1344,8 +1344,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-018",
-        title: "Polite past negative",
-        description: "Use ませんでした for actions that did not happen.",
+        title: "丁寧形の過去否定",
+        description: "「ませんでした」で過去にしなかった動作を表します。",
         sentences: [
             {
                 id: "l018-s01",
@@ -1429,8 +1429,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-019",
-        title: "How often",
-        description: "Place frequency adverbs before objects and verbs, including negative pairings.",
+        title: "頻度の表現",
+        description: "頻度を表す副詞を目的語や動詞の前に置き、否定文でも使います。",
         sentences: [
             {
                 id: "l019-s01",
@@ -1516,8 +1516,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-020",
-        title: "Action checkpoint",
-        description: "Combine objects, places, times, frequency, and all four polite verb endings.",
+        title: "動詞文のまとめ",
+        description: "物、場所、時間、頻度と丁寧形の四つの活用を組み合わせます。",
         sentences: [
             {
                 id: "l020-s01",
@@ -1639,8 +1639,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-021",
-        title: "Destinations with に",
-        description: "Use に to mark where someone goes, comes, or returns.",
+        title: "「に」で表す行き先",
+        description: "行く・来る・帰るの目的地を「に」で示します。",
         sentences: [
             {
                 id: "l021-s01",
@@ -1721,8 +1721,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-022",
-        title: "Direction with へ",
-        description: "Use へ when the sentence emphasizes movement in a direction.",
+        title: "「へ」で表す方向",
+        description: "移動する方向を強調するときに「へ」を使います。",
         sentences: [
             {
                 id: "l022-s01",
@@ -1800,8 +1800,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-023",
-        title: "Go, come, and return",
-        description: "Choose among 行く, 来る, and 帰る from the viewpoint of the sentence.",
+        title: "行く・来る・帰る",
+        description: "文の視点に合わせて「行く」「来る」「帰る」を選びます。",
         sentences: [
             {
                 id: "l023-s01",
@@ -1887,8 +1887,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-024",
-        title: "Transport and means",
-        description: "Use で after a vehicle or method to say how an action is performed.",
+        title: "交通手段と方法",
+        description: "乗り物や方法の後ろに「で」を付け、手段を表します。",
         sentences: [
             {
                 id: "l024-s01",
@@ -1978,8 +1978,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-025",
-        title: "Together with と",
-        description: "Use と to mark the person who accompanies an action.",
+        title: "「と」で表す同行",
+        description: "一緒に行動する相手を「と」で示します。",
         sentences: [
             {
                 id: "l025-s01",
@@ -2069,8 +2069,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-026",
-        title: "From and until",
-        description: "Use から for a starting point and まで for an endpoint in time or movement.",
+        title: "「から」と「まで」",
+        description: "時間や移動の始点を「から」、終点を「まで」で示します。",
         sentences: [
             {
                 id: "l026-s01",
@@ -2160,8 +2160,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-027",
-        title: "Living things exist",
-        description: "Use が with います for people and animals located somewhere.",
+        title: "人や動物の存在",
+        description: "人や動物がいる場所を「がいます」で表します。",
         sentences: [
             {
                 id: "l027-s01",
@@ -2233,8 +2233,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-028",
-        title: "Things exist",
-        description: "Use が with あります for inanimate objects and places.",
+        title: "物の存在",
+        description: "物や場所の存在を「があります」で表します。",
         sentences: [
             {
                 id: "l028-s01",
@@ -2316,8 +2316,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-029",
-        title: "Position words",
-        description: "Build precise locations with noun の position に.",
+        title: "位置を表す言葉",
+        description: "「名詞＋の＋位置＋に」で詳しい場所を組み立てます。",
         sentences: [
             {
                 id: "l029-s01",
@@ -2401,8 +2401,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-030",
-        title: "Movement and location checkpoint",
-        description: "Mix destinations, means, companions, boundaries, and existence.",
+        title: "移動と場所のまとめ",
+        description: "行き先、手段、同行者、範囲、存在表現を組み合わせます。",
         sentences: [
             {
                 id: "l030-s01",
@@ -2520,8 +2520,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-031",
-        title: "Basic い-adjectives",
-        description: "Describe topics with common adjectives that end in い.",
+        title: "基本のい形容詞",
+        description: "「い」で終わる基本的な形容詞で話題を説明します。",
         sentences: [
             {
                 id: "l031-s01",
@@ -2587,8 +2587,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-032",
-        title: "Basic な-adjectives",
-        description: "Describe topics with な-adjectives before the polite copula.",
+        title: "基本のな形容詞",
+        description: "な形容詞を「です」と組み合わせて話題を説明します。",
         sentences: [
             {
                 id: "l032-s01",
@@ -2656,8 +2656,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-033",
-        title: "Negative い-adjectives",
-        description: "Change い-adjectives to their negative form ending in くない.",
+        title: "い形容詞の否定",
+        description: "い形容詞を「くない」で終わる否定形に変えます。",
         sentences: [
             {
                 id: "l033-s01",
@@ -2723,8 +2723,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-034",
-        title: "Past い-adjectives",
-        description: "Use かった and くなかった to describe past qualities.",
+        title: "い形容詞の過去",
+        description: "「かった」「くなかった」で過去の性質を表します。",
         sentences: [
             {
                 id: "l034-s01",
@@ -2792,8 +2792,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-035",
-        title: "Negative and past な-adjectives",
-        description: "Conjugate な-adjective predicates through the copula rather than the adjective itself.",
+        title: "な形容詞の否定と過去",
+        description: "な形容詞そのものではなく、後ろの「です」を活用させます。",
         sentences: [
             {
                 id: "l035-s01",
@@ -2861,8 +2861,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-036",
-        title: "Adjectives before nouns",
-        description: "Place い-adjectives directly before nouns and add な after な-adjectives.",
+        title: "名詞を修飾する形容詞",
+        description: "い形容詞はそのまま、な形容詞は「な」を付けて名詞の前に置きます。",
         sentences: [
             {
                 id: "l036-s01",
@@ -2946,8 +2946,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-037",
-        title: "Likes and dislikes",
-        description: "Use が before 好き and 嫌い to mark the thing liked or disliked.",
+        title: "好きと嫌い",
+        description: "好き・嫌いの対象を「が」で示します。",
         sentences: [
             {
                 id: "l037-s01",
@@ -3028,8 +3028,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-038",
-        title: "Skills and weaknesses",
-        description: "Use が with 上手, 下手, 得意, and 苦手 to describe ability and comfort.",
+        title: "得意と苦手",
+        description: "「上手」「下手」「得意」「苦手」と「が」を使って能力や得手不得手を表します。",
         sentences: [
             {
                 id: "l038-s01",
@@ -3107,8 +3107,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-039",
-        title: "Comparisons",
-        description: "Compare two things with より and select the stronger choice with ほうが or いちばん.",
+        title: "比較の表現",
+        description: "「より」で比べ、「ほうが」や「いちばん」で強い方を選びます。",
         sentences: [
             {
                 id: "l039-s01",
@@ -3194,8 +3194,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-040",
-        title: "Description checkpoint",
-        description: "Mix adjective forms, noun modification, preferences, skills, and comparisons.",
+        title: "描写のまとめ",
+        description: "形容詞の活用、名詞修飾、好み、得意不得意、比較を組み合わせます。",
         sentences: [
             {
                 id: "l040-s01",
@@ -3298,8 +3298,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-041",
-        title: "General counter つ",
-        description: "Count ordinary objects with 一つ through 五つ and place the quantity after the object.",
+        title: "助数詞「つ」",
+        description: "普通の物を「一つ」から「五つ」で数え、数量を目的語の後ろに置きます。",
         sentences: [
             {
                 id: "l041-s01",
@@ -3381,8 +3381,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-042",
-        title: "Counting people",
-        description: "Use 一人, 二人, and 人 after the person being counted.",
+        title: "人の数え方",
+        description: "人数を「一人」「二人」「〜人」で数えます。",
         sentences: [
             {
                 id: "l042-s01",
@@ -3462,8 +3462,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-043",
-        title: "Counting books",
-        description: "Count books, notebooks, and other bound volumes with 冊.",
+        title: "本や冊子の数え方",
+        description: "本、ノートなどの冊子を「冊」で数えます。",
         sentences: [
             {
                 id: "l043-s01",
@@ -3549,8 +3549,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-044",
-        title: "Flat and long-object counters",
-        description: "Use 枚 for flat things and 本 for long cylindrical things.",
+        title: "「枚」と「本」の使い分け",
+        description: "平たい物は「枚」、細長い物は「本」で数えます。",
         sentences: [
             {
                 id: "l044-s01",
@@ -3634,8 +3634,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-045",
-        title: "Quantity inside sentences",
-        description: "Keep counters close to the verb while adding time, place, and frequency information.",
+        title: "文の中の数量",
+        description: "時間、場所、頻度を加えながら、助数詞を動詞の近くに置きます。",
         sentences: [
             {
                 id: "l045-s01",
@@ -3732,8 +3732,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-046",
-        title: "Expanded question words",
-        description: "Ask about objects, places, times, reasons, methods, and quantities.",
+        title: "疑問詞を広げる",
+        description: "物、場所、時間、理由、方法、数量について尋ねます。",
         sentences: [
             {
                 id: "l046-s01",
@@ -3815,8 +3815,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-047",
-        title: "Which and what kind",
-        description: "Distinguish どれ, どの, and どんな by what follows them.",
+        title: "どれ・どの・どんな",
+        description: "後ろに続く言葉に合わせて「どれ」「どの」「どんな」を使い分けます。",
         sentences: [
             {
                 id: "l047-s01",
@@ -3896,8 +3896,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-048",
-        title: "Complete lists with と",
-        description: "Join every listed noun with と before applying one particle to the group.",
+        title: "「と」で作る完全な並列",
+        description: "並べるすべての名詞を「と」でつなぎ、まとまりに一つの助詞を付けます。",
         sentences: [
             {
                 id: "l048-s01",
@@ -3989,8 +3989,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-049",
-        title: "Representative lists with や",
-        description: "Use や and など when the nouns are examples rather than a complete list.",
+        title: "「や」で作る例示",
+        description: "名詞が全体ではなく例の一部であるとき、「や」「など」を使います。",
         sentences: [
             {
                 id: "l049-s01",
@@ -4090,8 +4090,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-050",
-        title: "Quantity and question checkpoint",
-        description: "Combine counters, question words, comparisons, and complete or representative noun lists.",
+        title: "数量と疑問詞のまとめ",
+        description: "助数詞、疑問詞、比較、「と」「や」の並列を組み合わせます。",
         sentences: [
             {
                 id: "l050-s01",
@@ -4210,8 +4210,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-051",
-        title: "Connecting actions with て",
-        description: "Link actions in chronological sequence using the て-form.",
+        title: "「て」で動作をつなぐ",
+        description: "て形を使い、動作を時間の順に連結します。",
         sentences: [
             {
                 id: "l051-s01",
@@ -4303,8 +4303,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-052",
-        title: "Actions happening now",
-        description: "Use ています for an action currently in progress.",
+        title: "今している動作",
+        description: "「ています」で現在進行中の動作を表します。",
         sentences: [
             {
                 id: "l052-s01",
@@ -4388,8 +4388,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-053",
-        title: "Habits and resulting states",
-        description: "Recognize ています as an ongoing habit or a state produced by an earlier change.",
+        title: "習慣と結果の状態",
+        description: "「ています」が継続する習慣や変化後の状態を表す用法を学びます。",
         sentences: [
             {
                 id: "l053-s01",
@@ -4463,8 +4463,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-054",
-        title: "Requests with てください",
-        description: "Ask someone politely to perform an action.",
+        title: "「てください」で依頼",
+        description: "相手に動作をしてもらう丁寧な依頼を作ります。",
         sentences: [
             {
                 id: "l054-s01",
@@ -4529,8 +4529,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-055",
-        title: "Permission with てもいい",
-        description: "Combine the て-form, も, and いいです to permit an action or ask whether it is allowed.",
+        title: "「てもいい」で許可",
+        description: "て形に「もいいです」を続け、許可や許可の確認を表します。",
         sentences: [
             {
                 id: "l055-s01",
@@ -4608,8 +4608,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-056",
-        title: "Prohibition with てはいけません",
-        description: "Use the て-form plus はいけません to say that an action is forbidden.",
+        title: "「てはいけません」で禁止",
+        description: "て形に「はいけません」を続け、禁止を表します。",
         sentences: [
             {
                 id: "l056-s01",
@@ -4687,8 +4687,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-057",
-        title: "After doing with てから",
-        description: "Use てから to make the first action an explicit prerequisite for the second.",
+        title: "「てから」で順序を示す",
+        description: "最初の動作を次の動作の前提として明確に示します。",
         sentences: [
             {
                 id: "l057-s01",
@@ -4786,8 +4786,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-058",
-        title: "Representative actions with たり",
-        description: "Use past-form plus り to list sample activities rather than a complete sequence.",
+        title: "「たり」で動作を例示",
+        description: "過去形に「り」を付け、すべてではない代表的な行動を並べます。",
         sentences: [
             {
                 id: "l058-s01",
@@ -4883,8 +4883,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-059",
-        title: "Trying an action",
-        description: "Use てみます to attempt something and see the result.",
+        title: "「てみる」で試す",
+        description: "「てみます」を使い、結果を見るために動作を試します。",
         sentences: [
             {
                 id: "l059-s01",
@@ -4960,8 +4960,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-060",
-        title: "て-form checkpoint",
-        description: "Mix action sequences, ongoing states, requests, permission, prohibition, and attempts.",
+        title: "て形のまとめ",
+        description: "動作の連結、継続、依頼、許可、禁止、試行を組み合わせます。",
         sentences: [
             {
                 id: "l060-s01",
@@ -5081,8 +5081,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-061",
-        title: "Dictionary-form verbs",
-        description: "Recognize plain non-past verbs without the polite ます ending.",
+        title: "辞書形の動詞",
+        description: "丁寧な「ます」を付けない普通形の非過去を見分けます。",
         sentences: [
             {
                 id: "l061-s01",
@@ -5156,8 +5156,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-062",
-        title: "Plain past verbs",
-        description: "Use the た-form for completed actions in plain style.",
+        title: "普通形の過去",
+        description: "た形を使って、完了した動作を普通体で表します。",
         sentences: [
             {
                 id: "l062-s01",
@@ -5229,8 +5229,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-063",
-        title: "Plain negative verbs",
-        description: "Use ない-form verbs for actions that do not happen.",
+        title: "普通形の否定",
+        description: "ない形を使って、しない動作を普通体で表します。",
         sentences: [
             {
                 id: "l063-s01",
@@ -5303,8 +5303,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-064",
-        title: "Wanting to do",
-        description: "Attach たいです to the verb stem to express the speaker’s desired action.",
+        title: "「たい」で希望を表す",
+        description: "動詞の語幹に「たいです」を付け、話し手の希望を表します。",
         sentences: [
             {
                 id: "l064-s01",
@@ -5382,8 +5382,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-065",
-        title: "Intentions with つもり",
-        description: "Use a plain verb before つもりです to state a deliberate intention.",
+        title: "「つもり」で意思を表す",
+        description: "普通形の動詞に「つもりです」を続け、意図を表します。",
         sentences: [
             {
                 id: "l065-s01",
@@ -5462,8 +5462,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-066",
-        title: "Plans with 予定",
-        description: "Use 予定です for arrangements and scheduled actions.",
+        title: "「予定」で計画を表す",
+        description: "「予定です」を使って、決まっている計画や予定を表します。",
         sentences: [
             {
                 id: "l066-s01",
@@ -5541,8 +5541,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-067",
-        title: "Thoughts and opinions",
-        description: "Place a plain statement before と思います to mark it as your thought or judgment.",
+        title: "考えと意見",
+        description: "普通形の文に「と思います」を続け、考えや判断を表します。",
         sentences: [
             {
                 id: "l067-s01",
@@ -5620,8 +5620,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-068",
-        title: "Quoting speech",
-        description: "Use と after quoted words and before 言いました or 言います.",
+        title: "発言を引用する",
+        description: "引用した言葉の後ろに「と」を置き、「言いました」「言います」につなげます。",
         sentences: [
             {
                 id: "l068-s01",
@@ -5694,8 +5694,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-069",
-        title: "Giving reasons",
-        description: "Connect a reason to a result with から or the softer explanatory ので.",
+        title: "理由を伝える",
+        description: "「から」や柔らかい「ので」で理由と結果をつなぎます。",
         sentences: [
             {
                 id: "l069-s01",
@@ -5778,8 +5778,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-070",
-        title: "Plain-form checkpoint",
-        description: "Combine plain forms with wants, intentions, plans, thoughts, quotes, and reasons.",
+        title: "普通形のまとめ",
+        description: "普通形を希望、意思、予定、考え、引用、理由と組み合わせます。",
         sentences: [
             {
                 id: "l070-s01",
@@ -5893,8 +5893,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-071",
-        title: "Explanations with んです",
-        description: "Use んです to present information as an explanation or ask for the situation behind it.",
+        title: "「んです」で説明する",
+        description: "「んです」で事情を説明したり、背景を尋ねたりします。",
         sentences: [
             {
                 id: "l071-s01",
@@ -5961,8 +5961,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-072",
-        title: "Potential verbs",
-        description: "Use potential verb forms to express what someone can do.",
+        title: "可能動詞",
+        description: "可能形を使って、できる動作を表します。",
         sentences: [
             {
                 id: "l072-s01",
@@ -6037,8 +6037,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-073",
-        title: "Ability with ことができる",
-        description: "Express ability by turning a dictionary-form verb into a noun-like unit with こと.",
+        title: "「ことができる」で能力を表す",
+        description: "辞書形の動詞に「ことができる」を続けて能力を表します。",
         sentences: [
             {
                 id: "l073-s01",
@@ -6127,8 +6127,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-074",
-        title: "Past experience",
-        description: "Use a past plain verb before ことがあります to say you have had an experience.",
+        title: "経験を表す",
+        description: "過去普通形に「ことがあります」を続け、経験を表します。",
         sentences: [
             {
                 id: "l074-s01",
@@ -6207,8 +6207,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-075",
-        title: "Obligation",
-        description: "Use the negative conditional form plus なりません to express a requirement.",
+        title: "義務を表す",
+        description: "否定条件形に「なりません」を続け、必要な行動を表します。",
         sentences: [
             {
                 id: "l075-s01",
@@ -6288,8 +6288,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-076",
-        title: "No need to do",
-        description: "Use the negative て-form plus もいいです to remove an obligation.",
+        title: "しなくてもよい",
+        description: "否定のて形に「もいいです」を続け、義務がないことを表します。",
         sentences: [
             {
                 id: "l076-s01",
@@ -6356,8 +6356,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-077",
-        title: "Advice with ほうがいい",
-        description: "Compare doing and not doing an action to give practical advice.",
+        title: "「ほうがいい」で助言",
+        description: "する場合としない場合を比べ、実用的な助言を伝えます。",
         sentences: [
             {
                 id: "l077-s01",
@@ -6424,8 +6424,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-078",
-        title: "Before and after",
-        description: "Place a dictionary-form verb before 前に and a past-form verb before あとで.",
+        title: "前と後",
+        description: "辞書形を「前に」、過去形を「あとで」の前に置きます。",
         sentences: [
             {
                 id: "l078-s01",
@@ -6526,8 +6526,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-079",
-        title: "Doing two things with ながら",
-        description: "Attach ながら to a verb stem when one person performs two actions at the same time.",
+        title: "「ながら」で同時動作",
+        description: "同じ人が二つの動作を同時に行うとき、動詞の語幹に「ながら」を付けます。",
         sentences: [
             {
                 id: "l079-s01",
@@ -6617,8 +6617,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-080",
-        title: "Ability and obligation checkpoint",
-        description: "Mix explanations, two ability patterns, experience, obligation, advice, and time relations.",
+        title: "能力と義務のまとめ",
+        description: "説明、二つの可能表現、経験、義務、助言、時間関係を組み合わせます。",
         sentences: [
             {
                 id: "l080-s01",
@@ -6733,8 +6733,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-081",
-        title: "When with とき",
-        description: "Use とき after nouns and plain clauses to locate another action in time.",
+        title: "「とき」で時を表す",
+        description: "名詞や普通形の節に「とき」を続け、別の動作が起こる時点を示します。",
         sentences: [
             {
                 id: "l081-s01",
@@ -6828,8 +6828,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-082",
-        title: "Conditions with たら",
-        description: "Use たら for a general if-condition or an event that must happen first.",
+        title: "「たら」の条件",
+        description: "一般的な条件や、先に起こる必要がある出来事を「たら」で表します。",
         sentences: [
             {
                 id: "l082-s01",
@@ -6910,8 +6910,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-083",
-        title: "Conditions with なら",
-        description: "Use なら when responding to a stated topic, plan, or assumption.",
+        title: "「なら」の条件",
+        description: "話題、計画、仮定を受けて応答するときに「なら」を使います。",
         sentences: [
             {
                 id: "l083-s01",
@@ -6988,8 +6988,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-084",
-        title: "Automatic results with と",
-        description: "Use conditional と for regular, natural, or mechanically predictable results.",
+        title: "「と」で表す必然的な結果",
+        description: "規則的、自然、機械的に予測できる結果を条件の「と」で表します。",
         sentences: [
             {
                 id: "l084-s01",
@@ -7076,8 +7076,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-085",
-        title: "Even if with ても",
-        description: "Use ても to keep the main result true despite a condition.",
+        title: "「ても」で表す逆接条件",
+        description: "条件にかかわらず結果が変わらないときに「ても」を使います。",
         sentences: [
             {
                 id: "l085-s01",
@@ -7150,8 +7150,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-086",
-        title: "Simple relative clauses",
-        description: "Place a plain clause directly before the noun it describes, with no relative pronoun.",
+        title: "基本の連体修飾節",
+        description: "関係代名詞を使わず、普通形の節を説明する名詞の直前に置きます。",
         sentences: [
             {
                 id: "l086-s01",
@@ -7245,8 +7245,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-087",
-        title: "Longer relative clauses",
-        description: "Build longer noun descriptions containing subjects, objects, locations, and negative forms.",
+        title: "長い連体修飾節",
+        description: "主語、目的語、場所、否定形を含む長い名詞修飾を組み立てます。",
         sentences: [
             {
                 id: "l087-s01",
@@ -7340,8 +7340,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-088",
-        title: "Nominalizing actions",
-        description: "Use の or こと to treat an action or complete clause as a noun-like unit.",
+        title: "動作を名詞化する",
+        description: "「の」や「こと」を使い、動作や節全体を名詞のように扱います。",
         sentences: [
             {
                 id: "l088-s01",
@@ -7432,8 +7432,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-089",
-        title: "Purpose of movement and action",
-        description: "Use a verb stem plus に行く for immediate purpose and ために for broader goals.",
+        title: "移動と行動の目的",
+        description: "直接的な目的は「動詞の語幹＋に行く」、広い目的は「ために」で表します。",
         sentences: [
             {
                 id: "l089-s01",
@@ -7533,8 +7533,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-090",
-        title: "Clause-building checkpoint",
-        description: "Combine conditions, time clauses, relative clauses, nominalization, and purpose.",
+        title: "節の組み立てまとめ",
+        description: "条件節、時間節、連体修飾節、名詞化、目的表現を組み合わせます。",
         sentences: [
             {
                 id: "l090-s01",
@@ -7672,8 +7672,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-091",
-        title: "Giving and receiving things",
-        description: "Choose あげる, くれる, or もらう according to viewpoint and direction of transfer.",
+        title: "物の授受",
+        description: "授受の視点と方向に合わせて「あげる」「くれる」「もらう」を選びます。",
         sentences: [
             {
                 id: "l091-s01",
@@ -7762,8 +7762,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-092",
-        title: "Doing something for others",
-        description: "Use てあげる when the subject performs an action as a favour for someone else.",
+        title: "「てあげる」で手助け",
+        description: "主語が他の人のために行動するときに「てあげる」を使います。",
         sentences: [
             {
                 id: "l092-s01",
@@ -7856,8 +7856,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-093",
-        title: "Someone does something for me",
-        description: "Use てくれる when another person’s helpful action benefits you or your group.",
+        title: "「てくれる」で受ける恩恵",
+        description: "他の人の親切な行動が自分や身内のためになるときに「てくれる」を使います。",
         sentences: [
             {
                 id: "l093-s01",
@@ -7949,8 +7949,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-094",
-        title: "Receiving a helpful action",
-        description: "Use てもらう when the subject receives the benefit of another person’s action.",
+        title: "「てもらう」で受ける恩恵",
+        description: "主語が他の人にしてもらった行動の恩恵を受けるときに使います。",
         sentences: [
             {
                 id: "l094-s01",
@@ -8040,8 +8040,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-095",
-        title: "Transitive and intransitive pairs",
-        description: "Contrast a person changing something with the thing changing on its own.",
+        title: "他動詞と自動詞",
+        description: "人が物を変える文と、物が自然に変わる文を対比します。",
         sentences: [
             {
                 id: "l095-s01",
@@ -8113,8 +8113,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-096",
-        title: "Passive sentences",
-        description: "Use passive verb forms when the subject receives an action or when the actor is less central.",
+        title: "受身文",
+        description: "主語が動作を受けるときや、動作主を中心にしないときに受身形を使います。",
         sentences: [
             {
                 id: "l096-s01",
@@ -8198,8 +8198,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-097",
-        title: "Causative sentences",
-        description: "Use causative forms when someone makes or allows another person to perform an action.",
+        title: "使役文",
+        description: "人に動作をさせたり、許したりするときに使役形を使います。",
         sentences: [
             {
                 id: "l097-s01",
@@ -8283,8 +8283,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-098",
-        title: "Looks and seems with そう",
-        description: "Attach そうです to a visible quality or an action that appears likely to happen.",
+        title: "「そう」で見た目を表す",
+        description: "見た目の性質や、起こりそうな動作に「そうです」を付けます。",
         sentences: [
             {
                 id: "l098-s01",
@@ -8351,8 +8351,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-099",
-        title: "Reports and inference",
-        description: "Separate reported そうです from inference with ようです and conversational みたいです.",
+        title: "伝聞と推量",
+        description: "伝聞の「そうです」と、推量の「ようです」「みたいです」を使い分けます。",
         sentences: [
             {
                 id: "l099-s01",
@@ -8429,8 +8429,8 @@ export const levels: QuizLevel[] = [
     },
     {
         id: "level-100",
-        title: "Natural sentence synthesis",
-        description: "Finish by combining topic and subject choices, omitted information, embedded clauses, and natural multi-part sentences.",
+        title: "自然な文の総合練習",
+        description: "話題と主語の選択、省略、埋め込み節、自然な複文を組み合わせて仕上げます。",
         sentences: [
             {
                 id: "l100-s01",

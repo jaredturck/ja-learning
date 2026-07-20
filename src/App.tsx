@@ -286,14 +286,16 @@ function LevelStatus({ level, level_index, completed_count, is_sidebar_open, on_
     )
 }
 
-function CourseSidebar({ active_level_index, completed_sentence_ids, is_open, on_close, on_select_level }: {
+function CourseSidebar({ active_level_index, completed_sentence_ids, is_open, on_close, on_reset_progress, on_select_level }: {
     active_level_index: number
     completed_sentence_ids: string[]
     is_open: boolean
     on_close: () => void
+    on_reset_progress: () => void
     on_select_level: (level_index: number) => void
 }) {
     const active_level_ref = useRef<HTMLButtonElement | null>(null)
+    const [is_reset_confirmation_open, set_is_reset_confirmation_open] = useState(false)
     const total_sentence_count = levels.reduce((total, level) => total + level.sentences.length, 0)
     const completed_sentence_count = levels.reduce(
         (total, level) => total + get_completed_count(level, completed_sentence_ids),
@@ -312,6 +314,12 @@ function CourseSidebar({ active_level_index, completed_sentence_ids, is_open, on
             active_level_ref.current?.scrollIntoView({ block: 'center' })
         }
     }, [active_level_index, is_open])
+
+    useEffect(() => {
+        if (!is_open) {
+            set_is_reset_confirmation_open(false)
+        }
+    }, [is_open])
 
     return (
         <>
@@ -419,7 +427,57 @@ function CourseSidebar({ active_level_index, completed_sentence_ids, is_open, on
                         })}
                     </div>
                 </div>
+
+                <div className="shrink-0 border-t border-slate-800 p-3">
+                    <button
+                        className="w-full rounded-xl border border-red-400/30 px-4 py-3 text-sm font-semibold text-red-300 transition hover:border-red-400/60 hover:bg-red-400/10 hover:text-red-200"
+                        onClick={() => set_is_reset_confirmation_open(true)}
+                        type="button"
+                    >
+                        進捗をリセット
+                    </button>
+                </div>
             </aside>
+
+            {is_reset_confirmation_open ? (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm"
+                    onClick={() => set_is_reset_confirmation_open(false)}
+                    role="presentation"
+                >
+                    <div
+                        aria-describedby="reset-progress-description"
+                        aria-labelledby="reset-progress-title"
+                        aria-modal="true"
+                        className="w-full max-w-sm rounded-3xl border border-slate-700 bg-slate-950 p-6 shadow-2xl shadow-black/50"
+                        onClick={(event) => event.stopPropagation()}
+                        role="dialog"
+                    >
+                        <p className="text-xl font-semibold text-white" id="reset-progress-title">
+                            進捗をリセットしますか？
+                        </p>
+                        <p className="mt-3 text-sm leading-relaxed text-slate-400" id="reset-progress-description">
+                            すべてのレベルの進捗が削除され、レベル01から再開します。
+                        </p>
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-slate-600 hover:text-white"
+                                onClick={() => set_is_reset_confirmation_open(false)}
+                                type="button"
+                            >
+                                キャンセル
+                            </button>
+                            <button
+                                className="rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-400"
+                                onClick={on_reset_progress}
+                                type="button"
+                            >
+                                リセット
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </>
     )
 }
@@ -814,6 +872,29 @@ function App() {
         set_is_locked(false)
     }
 
+    const handle_reset_progress = () => {
+        if (feedback_timeout.current !== null) {
+            window.clearTimeout(feedback_timeout.current)
+            feedback_timeout.current = null
+        }
+
+        const next_progress = { completed_sentence_ids: [] }
+        const first_level = levels[0]
+
+        localStorage.removeItem(progress_storage_key)
+        set_progress(next_progress)
+        set_active_level_index(0)
+        set_level_completed_sentence_ids([])
+        set_sentence_order(get_sentence_order(first_level, []))
+        set_sentence_order_index(0)
+        set_current_chunk_index(0)
+        set_option_seed((current_seed) => current_seed + 1)
+        set_feedback_japanese('')
+        set_feedback_state(null)
+        set_is_locked(false)
+        set_is_sidebar_open(false)
+    }
+
     if (levels.length === 0) {
         return <EmptyCurriculum />
     }
@@ -825,6 +906,7 @@ function App() {
                 completed_sentence_ids={progress.completed_sentence_ids}
                 is_open={is_sidebar_open}
                 on_close={() => set_is_sidebar_open(false)}
+                on_reset_progress={handle_reset_progress}
                 on_select_level={handle_select_level}
             />
 
