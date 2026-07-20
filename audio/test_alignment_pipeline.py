@@ -1,12 +1,16 @@
 from pathlib import Path
 import csv
+import gc
 import json
+import math
 import os
 import random
 import shutil
 import subprocess
 import sys
 import tempfile
+import unicodedata
+import wave
 
 os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 
@@ -32,15 +36,18 @@ mfa_model_name = "japanese_mfa"
 whisper_model_name = "large-v3"
 whisper_language = "ja"
 whisper_beam_size = 5
-sample_count = 100
-sample_seed = 0
+sentence_sample_count = 100
+selection_seed = 0
+tts_seed = 0
 gpu_index = 0
 whisper_sample_rate = 16000
+mfa_num_jobs = max(1, min(4, os.cpu_count() or 1))
 
 alignment_punctuation = " \t\n\r\"'`“”‘’「」『』（）()［］[]【】。、，．,.！？!?・:：;；…"
 
 report_fields = [
-    "sample_number",
+    "report_row_number",
+    "sentence_sample_number",
     "row_type",
     "level_id",
     "sentence_id",
@@ -50,6 +57,11 @@ report_fields = [
     "expected_text",
     "alignment_token",
     "alignment_label",
+    "alignment_valid",
+    "alignment_error",
+    "alignment_labels_json",
+    "expected_chunk_count",
+    "aligned_word_count",
     "previous_chunk",
     "next_chunk",
     "alignment_start_seconds",
@@ -67,75 +79,299 @@ report_fields = [
     "audio_rms",
     "audio_peak",
     "whisper_segments_json",
-    "alignment_error",
     "tts_model",
     "tts_speaker",
     "alignment_model",
-    "sample_seed",
+    "alignment_tool_version",
+    "selection_seed",
+    "tts_seed",
 ]
 
 
-def check_command(command, arguments, message):
-    if shutil.which(command) is None:
-        sys.exit(message)
+def command_text(command):
+    return " ".join(str(part) for part in command)
 
+
+def command_output(result):
+    output_parts = []
+    stdout = result.stdout.strip() if result.stdout else ""
+    stderr = result.stderr.strip() if result.stderr else ""
+
+    if stdout:
+        output_parts.append(f"stdout:\n{stdout}")
+
+    if stderr:
+        output_parts.append(f"stderr:\n{stderr}")
+
+    if not output_parts:
+        return "出力はありません。"
+
+    return "\n\n".join(output_parts)
+
+
+def run_text_command(command, description, environment=None):
     result = subprocess.run(
-        [command, *arguments],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        [str(part) for part in command],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=environment,
     )
 
     if result.returncode != 0:
-        sys.exit(message)
+        sys.exit(
+            f"{description}\n"
+            f"コマンド: {command_text(command)}\n"
+            f"終了コード: {result.returncode}\n"
+            f"{command_output(result)}"
+        )
+
+    return result
 
 
-def check_tools():
-    check_command("ffmpeg", ["-version"], "FFmpeg が見つかりません。")
-    check_command(
-        "mfa",
-        ["--version"],
-        "Montreal Forced Aligner の mfa コマンドが見つかりません。",
+def executable_path(path):
+    if not path:
+        return None
+
+    candidate = Path(path).expanduser()
+
+    if candidate.is_file() and os.access(candidate, os.X_OK):
+        return candidate.resolve()
+
+    return None
+
+
+def find_ffmpeg_executable():
+    ffmpeg_path = executable_path(shutil.which("ffmpeg"))
+
+    if ffmpeg_path is None:
+        sys.exit("FFmpeg が見つかりません。PATH に ffmpeg があることを確認してください。")
+
+    return ffmpeg_path
+
+
+def find_mfa_executable():
+    candidates = []
+    environment_path = os.environ.get("MFA_EXECUTABLE")
+
+    if environment_path:
+        candidates.append(Path(environment_path).expanduser())
+
+    path_command = shutil.which("mfa")
+
+    if path_command:
+        candidates.append(Path(path_command))
+
+    conda_prefix = os.environ.get("CONDA_PREFIX")
+
+    if conda_prefix:
+        candidates.append(Path(conda_prefix) / "bin" / "mfa")
+
+    home_directory = Path.home()
+
+    for conda_directory_name in [
+        "miniforge3",
+        "mambaforge",
+        "miniconda3",
+        "anaconda3",
+    ]:
+        candidates.append(
+            home_directory
+            / conda_directory_name
+            / "envs"
+            / "mfa"
+            / "bin"
+            / "mfa"
+        )
+
+    checked_paths = []
+    seen_paths = set()
+
+    for candidate in candidates:
+        candidate = candidate.expanduser()
+        candidate_key = str(candidate)
+
+        if candidate_key in seen_paths:
+            continue
+
+        seen_paths.add(candidate_key)
+        checked_paths.append(candidate)
+        resolved_candidate = executable_path(candidate)
+
+        if resolved_candidate is not None:
+            return resolved_candidate
+
+    checked_text = "\n".join(f"- {path}" for path in checked_paths)
+    sys.exit(
+        "Montreal Forced Aligner の mfa 実行ファイルが見つかりません。\n"
+        "MFA を mfa という名前の Conda 環境にインストールするか、"
+        "MFA_EXECUTABLE に実行ファイルの絶対パスを設定してください。\n"
+        f"確認した場所:\n{checked_text}"
     )
 
 
-def load_levels():
-    levels_source = levels_path.read_text(encoding="utf-8")
+def create_mfa_environment(mfa_executable):
+    environment = os.environ.copy()
+    mfa_bin_directory = mfa_executable.parent
+    mfa_environment_directory = mfa_bin_directory.parent
+    current_path = environment.get("PATH", "")
 
-    if levels_start_marker not in levels_source or levels_end_marker not in levels_source:
-        sys.exit("levels.ts に音声データ用の開始・終了マーカーがありません。")
+    environment["PATH"] = f"{mfa_bin_directory}{os.pathsep}{current_path}"
+    environment["CONDA_PREFIX"] = str(mfa_environment_directory)
+    environment["CONDA_DEFAULT_ENV"] = mfa_environment_directory.name
+
+    for variable_name in ["PYTHONHOME", "PYTHONPATH", "VIRTUAL_ENV"]:
+        environment.pop(variable_name, None)
+
+    return environment
+
+
+def check_tools():
+    ffmpeg_executable = find_ffmpeg_executable()
+    ffmpeg_result = run_text_command(
+        [ffmpeg_executable, "-version"],
+        "FFmpeg の起動確認に失敗しました。",
+    )
+    ffmpeg_version = ffmpeg_result.stdout.splitlines()[0].strip()
+
+    mfa_executable = find_mfa_executable()
+    mfa_environment = create_mfa_environment(mfa_executable)
+    mfa_result = run_text_command(
+        [mfa_executable, "version"],
+        "Montreal Forced Aligner の起動確認に失敗しました。",
+        mfa_environment,
+    )
+    run_text_command(
+        [mfa_executable, "align_hf", "--help"],
+        "Montreal Forced Aligner に align_hf コマンドがありません。",
+        mfa_environment,
+    )
+
+    mfa_version = (mfa_result.stdout or mfa_result.stderr).strip()
+
+    if not mfa_version:
+        mfa_version = "unknown"
+
+    print(f"FFmpeg: {ffmpeg_version}")
+    print(f"MFA: {mfa_version}")
+    print(f"MFA実行ファイル: {mfa_executable}")
+    print(f"MFA並列ジョブ数: {mfa_num_jobs}")
+
+    return ffmpeg_executable, mfa_executable, mfa_environment, mfa_version
+
+
+def load_levels():
+    if not levels_path.is_file():
+        sys.exit(f"levels.ts が見つかりません: {levels_path}")
+
+    levels_source = levels_path.read_text(encoding="utf-8")
+    start_count = levels_source.count(levels_start_marker)
+    end_count = levels_source.count(levels_end_marker)
+
+    if start_count != 1 or end_count != 1:
+        sys.exit(
+            "levels.ts の音声データ用マーカーが一意ではありません。"
+            f" 開始={start_count}件、終了={end_count}件"
+        )
+
+    start_position = levels_source.index(levels_start_marker)
+    end_position = levels_source.index(levels_end_marker)
+
+    if end_position <= start_position:
+        sys.exit("levels.ts の音声データ用マーカーの順序が正しくありません。")
 
     levels_text = levels_source.split(levels_start_marker, 1)[1]
     levels_text = levels_text.split(levels_end_marker, 1)[0]
-    return json5.loads(levels_text)
+    levels = json5.loads(levels_text)
+
+    if not isinstance(levels, list) or not levels:
+        sys.exit("levels.ts の音声データが空か、配列ではありません。")
+
+    return levels
+
+
+def normalize_text(text):
+    return unicodedata.normalize("NFC", str(text))
 
 
 def get_alignment_token(text):
-    token = text.strip(alignment_punctuation)
+    token = normalize_text(text).strip(alignment_punctuation)
 
     if token:
         return token
 
-    return text.strip()
+    return normalize_text(text).strip()
 
 
 def collect_sentence_jobs(levels):
     jobs = []
+    level_ids = set()
+    sentence_keys = set()
 
     for level in levels:
-        for sentence_index, sentence in enumerate(level["sentences"]):
-            chunks = [chunk["japanese"] for chunk in sentence["chunks"]]
+        level_id = str(level.get("id", "")).strip()
+        sentences = level.get("sentences")
+
+        if not level_id:
+            sys.exit("IDのないレベルが見つかりました。")
+
+        if level_id in level_ids:
+            sys.exit(f"重複したレベルIDがあります: {level_id}")
+
+        if not isinstance(sentences, list) or not sentences:
+            sys.exit(f"文がないレベルがあります: {level_id}")
+
+        level_ids.add(level_id)
+
+        for sentence_index, sentence in enumerate(sentences):
+            sentence_id = str(sentence.get("id", "")).strip()
+            chunk_objects = sentence.get("chunks")
+            sentence_key = (level_id, sentence_id)
+
+            if not sentence_id:
+                sys.exit(f"IDのない文があります: {level_id} / {sentence_index}")
+
+            if sentence_key in sentence_keys:
+                sys.exit(f"重複した文IDがあります: {level_id} / {sentence_id}")
+
+            if not isinstance(chunk_objects, list) or not chunk_objects:
+                sys.exit(f"チャンクがない文があります: {level_id} / {sentence_id}")
+
+            sentence_keys.add(sentence_key)
+            chunks = []
+
+            for chunk_index, chunk in enumerate(chunk_objects):
+                japanese = normalize_text(chunk.get("japanese", ""))
+
+                if not japanese:
+                    sys.exit(
+                        "空の日本語チャンクがあります: "
+                        f"{level_id} / {sentence_id} / {chunk_index}"
+                    )
+
+                chunks.append(japanese)
+
             alignment_tokens = [get_alignment_token(chunk) for chunk in chunks]
             full_sentence_text = "".join(chunks)
 
-            if not full_sentence_text:
-                sys.exit(f"空の日本語文が見つかりました: {level['id']} / {sentence['id']}")
+            for chunk_index, token in enumerate(alignment_tokens):
+                if not token:
+                    sys.exit(
+                        "整列できない空のチャンクがあります: "
+                        f"{level_id} / {sentence_id} / {chunk_index}"
+                    )
 
-            if any(not token for token in alignment_tokens):
-                sys.exit(f"整列できない空のチャンクがあります: {level['id']} / {sentence['id']}")
+                if any(character.isspace() for character in token):
+                    sys.exit(
+                        "整列用チャンクに空白があります: "
+                        f"{level_id} / {sentence_id} / {chunk_index} / {token}"
+                    )
 
             jobs.append({
-                "level_id": level["id"],
-                "sentence_id": sentence["id"],
+                "level_id": level_id,
+                "sentence_id": sentence_id,
                 "sentence_index": sentence_index,
                 "full_sentence_text": full_sentence_text,
                 "chunks": chunks,
@@ -146,58 +382,85 @@ def collect_sentence_jobs(levels):
 
 
 def select_sentence_jobs(jobs):
-    if sample_count >= len(jobs):
-        return list(jobs)
+    if sentence_sample_count <= 0:
+        sys.exit("sentence_sample_count は1以上である必要があります。")
 
-    random_generator = random.Random(sample_seed)
-    jobs_by_level = {}
+    if sentence_sample_count >= len(jobs):
+        selected_jobs = list(jobs)
+    else:
+        random_generator = random.Random(selection_seed)
+        jobs_by_level = {}
 
-    for job in jobs:
-        jobs_by_level.setdefault(job["level_id"], []).append(job)
+        for job in jobs:
+            jobs_by_level.setdefault(job["level_id"], []).append(job)
 
-    selected_jobs = []
-    selected_keys = set()
-    level_ids = sorted(jobs_by_level)
-    base_count = sample_count // len(level_ids)
-    extra_count = sample_count % len(level_ids)
+        selected_jobs = []
+        selected_keys = set()
+        level_ids = sorted(jobs_by_level)
+        base_count = sentence_sample_count // len(level_ids)
+        extra_count = sentence_sample_count % len(level_ids)
 
-    for level_index, level_id in enumerate(level_ids):
-        level_count = base_count + (1 if level_index < extra_count else 0)
+        for level_index, level_id in enumerate(level_ids):
+            level_count = base_count + (1 if level_index < extra_count else 0)
 
-        if level_count == 0:
-            continue
+            if level_count == 0:
+                continue
 
-        level_jobs = list(jobs_by_level[level_id])
-        random_generator.shuffle(level_jobs)
+            level_jobs = list(jobs_by_level[level_id])
+            random_generator.shuffle(level_jobs)
 
-        for job in level_jobs[:level_count]:
-            selected_jobs.append(job)
-            selected_keys.add((job["level_id"], job["sentence_id"]))
+            for job in level_jobs[:level_count]:
+                selected_jobs.append(job)
+                selected_keys.add((job["level_id"], job["sentence_id"]))
 
-    if len(selected_jobs) < sample_count:
-        remaining_jobs = [
-            job
-            for job in jobs
-            if (job["level_id"], job["sentence_id"]) not in selected_keys
-        ]
-        random_generator.shuffle(remaining_jobs)
-        selected_jobs.extend(remaining_jobs[:sample_count - len(selected_jobs)])
+        if len(selected_jobs) < sentence_sample_count:
+            remaining_jobs = [
+                job
+                for job in jobs
+                if (job["level_id"], job["sentence_id"]) not in selected_keys
+            ]
+            random_generator.shuffle(remaining_jobs)
+            selected_jobs.extend(
+                remaining_jobs[:sentence_sample_count - len(selected_jobs)]
+            )
 
-    return sorted(
+    selected_jobs = sorted(
         selected_jobs,
         key=lambda job: (job["level_id"], job["sentence_index"]),
     )
 
+    for sentence_sample_number, job in enumerate(selected_jobs, start=1):
+        job["sentence_sample_number"] = sentence_sample_number
+        job["file_stem"] = f"sample-{sentence_sample_number:04d}"
 
-def clear_cuda_memory():
-    torch.cuda.empty_cache()
+    return selected_jobs
 
 
-def load_qwen_model():
+def validate_gpu():
     if not torch.cuda.is_available():
         sys.exit("CUDA対応GPUが見つかりません。")
 
+    device_count = torch.cuda.device_count()
+
+    if gpu_index < 0 or gpu_index >= device_count:
+        sys.exit(
+            f"gpu_index が範囲外です: {gpu_index} "
+            f"(利用可能GPU数: {device_count})"
+        )
+
     torch.cuda.set_device(gpu_index)
+
+
+def clear_cuda_memory():
+    gc.collect()
+
+    if torch.cuda.is_available():
+        torch.cuda.synchronize(gpu_index)
+        torch.cuda.empty_cache()
+
+
+def load_qwen_model():
+    validate_gpu()
     print(f"GPU: {torch.cuda.get_device_name(gpu_index)}")
     print(f"TTSモデル: {qwen_model_name}")
 
@@ -209,34 +472,57 @@ def load_qwen_model():
     )
 
 
-def generate_sentence_audio(model, text):
-    wavs, sample_rate = model.generate_custom_voice(
-        text=[text],
-        language=["Japanese"],
-        speaker=[speaker_name],
-        max_new_tokens=2048,
-    )
+def normalize_generated_waveform(waveform, sample_rate, text):
+    waveform = numpy.asarray(waveform)
 
-    if len(wavs) != 1:
-        sys.exit(f"生成された音声数が一致しません: {text}")
+    if waveform.ndim == 2 and waveform.shape[0] == 1:
+        waveform = waveform[0]
+    elif waveform.ndim == 2 and waveform.shape[1] == 1:
+        waveform = waveform[:, 0]
+    elif waveform.ndim != 1:
+        sys.exit(
+            f"生成音声の形状がモノラルではありません: {text} / {waveform.shape}"
+        )
 
-    waveform = numpy.asarray(wavs[0], dtype=numpy.float32).reshape(-1)
+    waveform = numpy.asarray(waveform, dtype=numpy.float32).copy()
+    sample_rate = int(sample_rate)
+
+    if sample_rate <= 0:
+        sys.exit(f"生成音声のサンプルレートが正しくありません: {text} / {sample_rate}")
 
     if waveform.size == 0:
         sys.exit(f"空の音声が生成されました: {text}")
 
+    if not numpy.isfinite(waveform).all():
+        sys.exit(f"生成音声にNaNまたは無限大が含まれています: {text}")
+
     return waveform, sample_rate
 
 
-def write_wav(path, waveform, sample_rate):
-    audio_bytes = waveform.astype("<f4", copy=False).tobytes()
+def generate_sentence_audio(model, text):
+    with torch.inference_mode():
+        wavs, sample_rate = model.generate_custom_voice(
+            text=[text],
+            language=["Japanese"],
+            speaker=[speaker_name],
+            max_new_tokens=2048,
+        )
 
+    if len(wavs) != 1:
+        sys.exit(f"生成された音声数が一致しません: {text}")
+
+    return normalize_generated_waveform(wavs[0], sample_rate, text)
+
+
+def write_wav(ffmpeg_executable, path, waveform, sample_rate):
+    audio_bytes = waveform.astype("<f4", copy=False).tobytes()
     result = subprocess.run(
         [
-            "ffmpeg",
+            str(ffmpeg_executable),
             "-hide_banner",
             "-loglevel",
             "error",
+            "-nostdin",
             "-y",
             "-f",
             "f32le",
@@ -257,101 +543,257 @@ def write_wav(path, waveform, sample_rate):
 
     if result.returncode != 0:
         error_message = result.stderr.decode("utf-8", errors="replace").strip()
-        sys.exit(f"WAVファイルの作成に失敗しました: {path}\n{error_message}")
+        sys.exit(
+            f"WAVファイルの作成に失敗しました: {path}\n"
+            f"終了コード: {result.returncode}\n{error_message}"
+        )
 
-    if not path.exists() or path.stat().st_size == 0:
+    if not path.is_file() or path.stat().st_size == 0:
         sys.exit(f"WAVファイルの作成に失敗しました: {path}")
 
+    with wave.open(str(path), "rb") as wav_file:
+        channel_count = wav_file.getnchannels()
+        wav_sample_rate = wav_file.getframerate()
+        sample_width = wav_file.getsampwidth()
+        frame_count = wav_file.getnframes()
 
-def run_mfa_alignment(wav_path, lab_path, output_path, temporary_directory):
-    result = subprocess.run(
-        [
-            "mfa",
-            "align_one_hf",
-            str(wav_path),
-            str(lab_path),
-            mfa_model_name,
-            str(output_path),
-            "--output_format",
-            "json",
-            "--use_g2p",
-            "--no_tokenization",
-            "--temporary_directory",
-            str(temporary_directory),
-            "--num_jobs",
-            "1",
-            "--clean",
-            "--final_clean",
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+    if channel_count != 1:
+        sys.exit(f"MFA用WAVがモノラルではありません: {path} / {channel_count}ch")
+
+    if wav_sample_rate != sample_rate:
+        sys.exit(
+            f"MFA用WAVのサンプルレートが一致しません: "
+            f"{path} / expected={sample_rate} actual={wav_sample_rate}"
+        )
+
+    if sample_width != 2:
+        sys.exit(f"MFA用WAVが16-bit PCMではありません: {path}")
+
+    if frame_count != waveform.size:
+        sys.exit(
+            f"MFA用WAVのサンプル数が一致しません: "
+            f"{path} / expected={waveform.size} actual={frame_count}"
+        )
+
+
+def write_alignment_corpus(ffmpeg_executable, corpus_directory, selected_jobs, model):
+    generated_sentences = []
+
+    for job in tqdm(
+        selected_jobs,
+        desc="全文音声を生成しています",
+        unit="文",
+        dynamic_ncols=True,
+    ):
+        waveform, sample_rate = generate_sentence_audio(
+            model,
+            job["full_sentence_text"],
+        )
+        wav_path = corpus_directory / f"{job['file_stem']}.wav"
+        lab_path = corpus_directory / f"{job['file_stem']}.lab"
+
+        write_wav(ffmpeg_executable, wav_path, waveform, sample_rate)
+        lab_path.write_text(
+            " ".join(job["alignment_tokens"]) + "\n",
+            encoding="utf-8",
+        )
+
+        generated_sentences.append({
+            "job": job,
+            "waveform": waveform,
+            "sample_rate": sample_rate,
+        })
+
+    return generated_sentences
+
+
+def run_mfa_corpus_alignment(
+    mfa_executable,
+    mfa_environment,
+    corpus_directory,
+    aligned_directory,
+    mfa_temporary_directory,
+):
+    command = [
+        mfa_executable,
+        "align_hf",
+        "--output_format",
+        "json",
+        "--use_g2p",
+        "--no_tokenization",
+        "--temporary_directory",
+        mfa_temporary_directory,
+        "--num_jobs",
+        str(mfa_num_jobs),
+        "--clean",
+        "--final_clean",
+        "--overwrite",
+        "--single_speaker",
+        corpus_directory,
+        mfa_model_name,
+        aligned_directory,
+    ]
+
+    print("MFAで全文音声を一括整列しています。")
+    run_text_command(
+        command,
+        "MFAの一括整列に失敗しました。",
+        mfa_environment,
     )
 
-    if result.returncode != 0:
-        error_message = result.stderr.decode("utf-8", errors="replace").strip()
-        sys.exit(f"MFA整列に失敗しました: {wav_path}\n{error_message}")
 
-    if output_path.exists():
-        return output_path
+def find_alignment_path(aligned_directory, file_stem):
+    matching_paths = sorted(aligned_directory.rglob(f"{file_stem}.json"))
 
-    json_outputs = sorted(output_path.parent.rglob("*.json"))
+    if len(matching_paths) != 1:
+        matches_text = "\n".join(str(path) for path in matching_paths)
+        sys.exit(
+            f"MFA整列結果を一意に特定できません: {file_stem}\n"
+            f"一致数: {len(matching_paths)}\n{matches_text}"
+        )
 
-    if not json_outputs:
-        sys.exit(f"MFA整列結果が見つかりません: {wav_path}")
-
-    return json_outputs[0]
+    return matching_paths[0]
 
 
 def parse_word_entries(alignment_path):
     alignment = json.loads(alignment_path.read_text(encoding="utf-8"))
-    tiers = alignment.get("tiers", {})
-    entries = None
+    tiers = alignment.get("tiers")
+
+    if not isinstance(tiers, dict):
+        sys.exit(f"MFA整列結果に tiers がありません: {alignment_path}")
+
+    word_tiers = []
 
     for tier_name, tier_data in tiers.items():
         if tier_name == "words" or tier_name.endswith(" - words"):
-            entries = tier_data.get("entries", [])
-            break
+            word_tiers.append((tier_name, tier_data))
 
-    if entries is None:
-        sys.exit(f"MFA整列結果に words tier がありません: {alignment_path}")
+    if len(word_tiers) != 1:
+        tier_names = ", ".join(name for name, _ in word_tiers)
+        sys.exit(
+            f"MFA整列結果の words tier を一意に特定できません: "
+            f"{alignment_path} / {tier_names}"
+        )
+
+    tier_name, tier_data = word_tiers[0]
+    entries = tier_data.get("entries")
+
+    if not isinstance(entries, list):
+        sys.exit(f"MFA整列結果の entries が配列ではありません: {alignment_path}")
 
     word_entries = []
 
-    for entry in entries:
-        if len(entry) != 3:
-            continue
+    for entry_index, entry in enumerate(entries):
+        if not isinstance(entry, list) or len(entry) != 3:
+            sys.exit(
+                f"MFA整列結果の項目形式が正しくありません: "
+                f"{alignment_path} / {tier_name} / {entry_index}"
+            )
 
-        label = str(entry[2]).strip()
+        start_seconds = float(entry[0])
+        end_seconds = float(entry[1])
+        label = normalize_text(entry[2]).strip()
 
         if not label:
             continue
 
         word_entries.append({
-            "start": float(entry[0]),
-            "end": float(entry[1]),
+            "start": start_seconds,
+            "end": end_seconds,
             "label": label,
         })
 
     return word_entries
 
 
+def validate_alignment(job, word_entries, waveform, sample_rate):
+    expected_tokens = job["alignment_tokens"]
+    actual_labels = [entry["label"] for entry in word_entries]
+    errors = []
+
+    if len(word_entries) != len(expected_tokens):
+        errors.append(
+            "chunk_count_mismatch:"
+            f" expected={len(expected_tokens)} actual={len(word_entries)}"
+        )
+
+    normalized_expected = [normalize_text(token) for token in expected_tokens]
+    normalized_actual = [normalize_text(label) for label in actual_labels]
+
+    if normalized_actual != normalized_expected:
+        errors.append(
+            "label_sequence_mismatch:"
+            f" expected={json.dumps(expected_tokens, ensure_ascii=False)}"
+            f" actual={json.dumps(actual_labels, ensure_ascii=False)}"
+        )
+
+    previous_end_sample = 0
+
+    for entry_index, entry in enumerate(word_entries):
+        start_seconds = entry["start"]
+        end_seconds = entry["end"]
+
+        if not math.isfinite(start_seconds) or not math.isfinite(end_seconds):
+            errors.append(f"non_finite_timestamp: index={entry_index}")
+            continue
+
+        start_sample = round(start_seconds * sample_rate)
+        end_sample = round(end_seconds * sample_rate)
+
+        if start_seconds < 0 or start_sample < 0:
+            errors.append(
+                f"negative_start: index={entry_index} value={start_seconds}"
+            )
+
+        if end_seconds <= start_seconds or end_sample <= start_sample:
+            errors.append(
+                f"invalid_range: index={entry_index} "
+                f"start={start_seconds} end={end_seconds}"
+            )
+
+        if end_sample > waveform.size:
+            errors.append(
+                f"range_exceeds_audio: index={entry_index} "
+                f"end_sample={end_sample} audio_samples={waveform.size}"
+            )
+
+        if start_sample < previous_end_sample:
+            errors.append(
+                f"overlapping_ranges: index={entry_index} "
+                f"start_sample={start_sample} previous_end_sample={previous_end_sample}"
+            )
+
+        previous_end_sample = max(previous_end_sample, end_sample)
+
+    return "; ".join(errors), actual_labels
+
+
 def extract_clip(waveform, sample_rate, start_seconds, end_seconds):
     start_sample = round(start_seconds * sample_rate)
     end_sample = round(end_seconds * sample_rate)
 
-    if start_sample < 0:
-        start_sample = 0
-
-    if end_sample > waveform.size:
-        end_sample = waveform.size
-
-    if end_sample <= start_sample:
-        return numpy.zeros(0, dtype=numpy.float32)
+    if start_sample < 0 or end_sample <= start_sample or end_sample > waveform.size:
+        sys.exit(
+            "検証済みの整列範囲から音声を抽出できません: "
+            f"start={start_seconds} end={end_seconds} "
+            f"sample_rate={sample_rate} audio_samples={waveform.size}"
+        )
 
     return waveform[start_sample:end_sample].copy()
 
 
-def create_audio_record(job, waveform, sample_rate, row_type, chunk_index, word_entry, alignment_error):
+def create_audio_record(
+    generated_sentence,
+    row_type,
+    chunk_index,
+    word_entry,
+    alignment_valid,
+    alignment_error,
+    alignment_labels,
+):
+    job = generated_sentence["job"]
+    waveform = generated_sentence["waveform"]
+    sample_rate = generated_sentence["sample_rate"]
     chunks = job["chunks"]
     alignment_tokens = job["alignment_tokens"]
     source_duration = waveform.size / sample_rate
@@ -368,13 +810,13 @@ def create_audio_record(job, waveform, sample_rate, row_type, chunk_index, word_
     else:
         expected_text = chunks[chunk_index]
         alignment_token = alignment_tokens[chunk_index]
-        alignment_label = word_entry.get("label", "") if word_entry else ""
-        alignment_start = word_entry.get("start", "") if word_entry else ""
-        alignment_end = word_entry.get("end", "") if word_entry else ""
+        alignment_label = word_entry["label"] if word_entry else ""
+        alignment_start = word_entry["start"] if word_entry else ""
+        alignment_end = word_entry["end"] if word_entry else ""
         previous_chunk = chunks[chunk_index - 1] if chunk_index > 0 else ""
         next_chunk = chunks[chunk_index + 1] if chunk_index + 1 < len(chunks) else ""
 
-        if word_entry:
+        if alignment_valid and word_entry is not None:
             clip_waveform = extract_clip(
                 waveform,
                 sample_rate,
@@ -385,6 +827,7 @@ def create_audio_record(job, waveform, sample_rate, row_type, chunk_index, word_
             clip_waveform = numpy.zeros(0, dtype=numpy.float32)
 
     return {
+        "sentence_sample_number": job["sentence_sample_number"],
         "row_type": row_type,
         "level_id": job["level_id"],
         "sentence_id": job["sentence_id"],
@@ -394,6 +837,11 @@ def create_audio_record(job, waveform, sample_rate, row_type, chunk_index, word_
         "expected_text": expected_text,
         "alignment_token": alignment_token,
         "alignment_label": alignment_label,
+        "alignment_valid": alignment_valid,
+        "alignment_error": alignment_error,
+        "alignment_labels": alignment_labels,
+        "expected_chunk_count": len(alignment_tokens),
+        "aligned_word_count": len(alignment_labels),
         "previous_chunk": previous_chunk,
         "next_chunk": next_chunk,
         "alignment_start_seconds": alignment_start,
@@ -402,15 +850,20 @@ def create_audio_record(job, waveform, sample_rate, row_type, chunk_index, word_
         "source_sentence_duration_seconds": source_duration,
         "audio_sample_rate": sample_rate,
         "waveform": clip_waveform,
-        "alignment_error": alignment_error,
     }
 
 
-def create_alignment_records(model, selected_jobs):
+def create_alignment_records(
+    model,
+    selected_jobs,
+    ffmpeg_executable,
+    mfa_executable,
+    mfa_environment,
+):
     records = []
 
-    with tempfile.TemporaryDirectory(prefix="ja_alignment_test_") as temporary_directory_name:
-        temporary_directory = Path(temporary_directory_name)
+    with tempfile.TemporaryDirectory(prefix="ja_alignment_test_") as temporary_name:
+        temporary_directory = Path(temporary_name)
         corpus_directory = temporary_directory / "corpus"
         aligned_directory = temporary_directory / "aligned"
         mfa_temporary_directory = temporary_directory / "mfa"
@@ -418,135 +871,151 @@ def create_alignment_records(model, selected_jobs):
         aligned_directory.mkdir()
         mfa_temporary_directory.mkdir()
 
-        for sample_number, job in enumerate(
-            tqdm(
-                selected_jobs,
-                desc="生成・整列しています",
-                unit="文",
-                dynamic_ncols=True,
-            ),
-            start=1,
-        ):
-            waveform, sample_rate = generate_sentence_audio(
-                model,
-                job["full_sentence_text"],
-            )
-            file_stem = f"sample-{sample_number:04d}"
-            wav_path = corpus_directory / f"{file_stem}.wav"
-            lab_path = corpus_directory / f"{file_stem}.lab"
-            output_path = aligned_directory / f"{file_stem}.json"
+        generated_sentences = write_alignment_corpus(
+            ffmpeg_executable,
+            corpus_directory,
+            selected_jobs,
+            model,
+        )
+        run_mfa_corpus_alignment(
+            mfa_executable,
+            mfa_environment,
+            corpus_directory,
+            aligned_directory,
+            mfa_temporary_directory,
+        )
 
-            write_wav(wav_path, waveform, sample_rate)
-            lab_path.write_text(
-                " ".join(job["alignment_tokens"]),
-                encoding="utf-8",
-            )
-            alignment_path = run_mfa_alignment(
-                wav_path,
-                lab_path,
-                output_path,
-                mfa_temporary_directory,
+        for generated_sentence in tqdm(
+            generated_sentences,
+            desc="整列結果を検証しています",
+            unit="文",
+            dynamic_ncols=True,
+        ):
+            job = generated_sentence["job"]
+            alignment_path = find_alignment_path(
+                aligned_directory,
+                job["file_stem"],
             )
             word_entries = parse_word_entries(alignment_path)
-            alignment_error = ""
-
-            if len(word_entries) != len(job["alignment_tokens"]):
-                alignment_error = (
-                    "chunk_count_mismatch:"
-                    f" expected={len(job['alignment_tokens'])}"
-                    f" actual={len(word_entries)}"
-                )
+            alignment_error, alignment_labels = validate_alignment(
+                job,
+                word_entries,
+                generated_sentence["waveform"],
+                generated_sentence["sample_rate"],
+            )
+            alignment_valid = not alignment_error
 
             records.append(
                 create_audio_record(
-                    job,
-                    waveform,
-                    sample_rate,
+                    generated_sentence,
                     "sentence",
                     "",
                     None,
+                    alignment_valid,
                     alignment_error,
+                    alignment_labels,
                 )
             )
 
-            for chunk_index, alignment_token in enumerate(job["alignment_tokens"]):
-                word_entry = word_entries[chunk_index] if chunk_index < len(word_entries) else None
-                chunk_error = alignment_error
-
-                if word_entry and word_entry["label"] != alignment_token:
-                    chunk_error = (
-                        f"label_mismatch: expected={alignment_token}"
-                        f" actual={word_entry['label']}"
-                    )
-
+            for chunk_index in range(len(job["chunks"])):
+                word_entry = (
+                    word_entries[chunk_index]
+                    if chunk_index < len(word_entries)
+                    else None
+                )
                 records.append(
                     create_audio_record(
-                        job,
-                        waveform,
-                        sample_rate,
+                        generated_sentence,
                         "chunk",
                         chunk_index,
                         word_entry,
-                        chunk_error,
+                        alignment_valid,
+                        alignment_error,
+                        alignment_labels,
                     )
                 )
 
     return records
 
 
-def resample_for_whisper(waveform, sample_rate):
+def resample_for_whisper(ffmpeg_executable, waveform, sample_rate):
     if sample_rate == whisper_sample_rate:
-        return waveform.astype(numpy.float32, copy=False)
+        whisper_waveform = waveform.astype(numpy.float32, copy=False)
+    else:
+        audio_bytes = waveform.astype("<f4", copy=False).tobytes()
+        result = subprocess.run(
+            [
+                str(ffmpeg_executable),
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-nostdin",
+                "-f",
+                "f32le",
+                "-ar",
+                str(sample_rate),
+                "-ac",
+                "1",
+                "-i",
+                "pipe:0",
+                "-ar",
+                str(whisper_sample_rate),
+                "-ac",
+                "1",
+                "-f",
+                "f32le",
+                "pipe:1",
+            ],
+            input=audio_bytes,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
 
-    audio_bytes = waveform.astype("<f4", copy=False).tobytes()
-    result = subprocess.run(
-        [
-            "ffmpeg",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-f",
-            "f32le",
-            "-ar",
-            str(sample_rate),
-            "-ac",
-            "1",
-            "-i",
-            "pipe:0",
-            "-ar",
-            str(whisper_sample_rate),
-            "-ac",
-            "1",
-            "-f",
-            "f32le",
-            "pipe:1",
-        ],
-        input=audio_bytes,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+        if result.returncode != 0:
+            error_message = result.stderr.decode("utf-8", errors="replace").strip()
+            sys.exit(
+                "Whisper用のリサンプリングに失敗しました。\n"
+                f"終了コード: {result.returncode}\n{error_message}"
+            )
 
-    if result.returncode != 0:
-        error_message = result.stderr.decode("utf-8", errors="replace").strip()
-        sys.exit(f"Whisper用のリサンプリングに失敗しました。\n{error_message}")
+        whisper_waveform = numpy.frombuffer(result.stdout, dtype="<f4").copy()
 
-    return numpy.frombuffer(result.stdout, dtype="<f4").copy()
+    if whisper_waveform.size == 0:
+        sys.exit("Whisper用のリサンプリング結果が空です。")
+
+    if not numpy.isfinite(whisper_waveform).all():
+        sys.exit("Whisper用の音声にNaNまたは無限大が含まれています。")
+
+    return whisper_waveform
 
 
 def load_whisper_model():
-    if not torch.cuda.is_available():
-        sys.exit("CUDA対応GPUが見つかりません。")
-
-    torch.cuda.set_device(gpu_index)
+    validate_gpu()
     print(f"Whisperモデル: {whisper_model_name}")
-    return whisper.load_model(whisper_model_name, device=f"cuda:{gpu_index}")
+    return whisper.load_model(
+        whisper_model_name,
+        device=f"cuda:{gpu_index}",
+    )
 
 
-def transcribe_clip(model, waveform, sample_rate):
+def segment_float(segment, key):
+    value = segment.get(key)
+
+    if value is None:
+        return 0.0
+
+    return float(value)
+
+
+def transcribe_clip(model, ffmpeg_executable, waveform, sample_rate):
     if waveform.size == 0:
         return "", []
 
-    whisper_waveform = resample_for_whisper(waveform, sample_rate)
+    whisper_waveform = resample_for_whisper(
+        ffmpeg_executable,
+        waveform,
+        sample_rate,
+    )
     result = model.transcribe(
         whisper_waveform,
         language=whisper_language,
@@ -566,13 +1035,13 @@ def transcribe_clip(model, waveform, sample_rate):
 
     for segment in segments:
         segment_rows.append({
-            "start": round(float(segment.get("start", 0)), 4),
-            "end": round(float(segment.get("end", 0)), 4),
+            "start": round(segment_float(segment, "start"), 4),
+            "end": round(segment_float(segment, "end"), 4),
             "text": segment.get("text", ""),
-            "avg_logprob": round(float(segment.get("avg_logprob", 0)), 6),
-            "no_speech_prob": round(float(segment.get("no_speech_prob", 0)), 6),
-            "compression_ratio": round(float(segment.get("compression_ratio", 0)), 6),
-            "temperature": round(float(segment.get("temperature", 0)), 6),
+            "avg_logprob": round(segment_float(segment, "avg_logprob"), 6),
+            "no_speech_prob": round(segment_float(segment, "no_speech_prob"), 6),
+            "compression_ratio": round(segment_float(segment, "compression_ratio"), 6),
+            "temperature": round(segment_float(segment, "temperature"), 6),
         })
 
     return result.get("text", "").strip(), segment_rows
@@ -599,7 +1068,8 @@ def get_audio_rms(waveform):
     if waveform.size == 0:
         return ""
 
-    return round(float(numpy.sqrt(numpy.mean(numpy.square(waveform)))), 8)
+    waveform_float64 = waveform.astype(numpy.float64)
+    return round(float(numpy.sqrt(numpy.mean(numpy.square(waveform_float64)))), 8)
 
 
 def get_audio_peak(waveform):
@@ -609,9 +1079,16 @@ def get_audio_peak(waveform):
     return round(float(numpy.max(numpy.abs(waveform))), 8)
 
 
-def create_report_row(sample_number, record, whisper_text, segment_rows):
+def create_report_row(
+    report_row_number,
+    record,
+    whisper_text,
+    segment_rows,
+    mfa_version,
+):
     return {
-        "sample_number": sample_number,
+        "report_row_number": report_row_number,
+        "sentence_sample_number": record["sentence_sample_number"],
         "row_type": record["row_type"],
         "level_id": record["level_id"],
         "sentence_id": record["sentence_id"],
@@ -621,12 +1098,24 @@ def create_report_row(sample_number, record, whisper_text, segment_rows):
         "expected_text": record["expected_text"],
         "alignment_token": record["alignment_token"],
         "alignment_label": record["alignment_label"],
+        "alignment_valid": "yes" if record["alignment_valid"] else "no",
+        "alignment_error": record["alignment_error"],
+        "alignment_labels_json": json.dumps(
+            record["alignment_labels"],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
+        "expected_chunk_count": record["expected_chunk_count"],
+        "aligned_word_count": record["aligned_word_count"],
         "previous_chunk": record["previous_chunk"],
         "next_chunk": record["next_chunk"],
         "alignment_start_seconds": record["alignment_start_seconds"],
         "alignment_end_seconds": record["alignment_end_seconds"],
         "clip_duration_seconds": round(record["clip_duration_seconds"], 8),
-        "source_sentence_duration_seconds": round(record["source_sentence_duration_seconds"], 8),
+        "source_sentence_duration_seconds": round(
+            record["source_sentence_duration_seconds"],
+            8,
+        ),
         "whisper_text": whisper_text,
         "whisper_model": whisper_model_name,
         "whisper_language": whisper_language,
@@ -651,39 +1140,64 @@ def create_report_row(sample_number, record, whisper_text, segment_rows):
             ensure_ascii=False,
             separators=(",", ":"),
         ),
-        "alignment_error": record["alignment_error"],
         "tts_model": qwen_model_name,
         "tts_speaker": speaker_name,
         "alignment_model": mfa_model_name,
-        "sample_seed": sample_seed,
+        "alignment_tool_version": mfa_version,
+        "selection_seed": selection_seed,
+        "tts_seed": tts_seed,
     }
 
 
-def write_report(records, model):
-    with report_path.open("w", encoding="utf-8-sig", newline="") as report_file:
-        writer = csv.DictWriter(report_file, fieldnames=report_fields)
-        writer.writeheader()
+def write_report(records, model, ffmpeg_executable, mfa_version):
+    with tempfile.TemporaryDirectory(
+        prefix=".alignment_report_",
+        dir=script_directory,
+    ) as temporary_report_directory_name:
+        temporary_report_path = (
+            Path(temporary_report_directory_name)
+            / report_path.name
+        )
 
-        for sample_number, record in enumerate(
-            tqdm(
-                records,
-                desc="Whisperで文字起こししています",
-                unit="件",
-                dynamic_ncols=True,
-            ),
-            start=1,
-        ):
-            whisper_text, segment_rows = transcribe_clip(
-                model,
-                record["waveform"],
-                record["audio_sample_rate"],
-            )
-            writer.writerow(create_report_row(sample_number, record, whisper_text, segment_rows))
-            report_file.flush()
+        with temporary_report_path.open(
+            "w",
+            encoding="utf-8-sig",
+            newline="",
+        ) as report_file:
+            writer = csv.DictWriter(report_file, fieldnames=report_fields)
+            writer.writeheader()
+
+            for report_row_number, record in enumerate(
+                tqdm(
+                    records,
+                    desc="Whisperで文字起こししています",
+                    unit="件",
+                    dynamic_ncols=True,
+                ),
+                start=1,
+            ):
+                whisper_text, segment_rows = transcribe_clip(
+                    model,
+                    ffmpeg_executable,
+                    record["waveform"],
+                    record["audio_sample_rate"],
+                )
+                writer.writerow(
+                    create_report_row(
+                        report_row_number,
+                        record,
+                        whisper_text,
+                        segment_rows,
+                        mfa_version,
+                    )
+                )
+                report_file.flush()
+
+        temporary_report_path.replace(report_path)
 
 
 def main():
-    check_tools()
+    ffmpeg_executable, mfa_executable, mfa_environment, mfa_version = check_tools()
     disable_progress_bars()
     transformers_logging.set_verbosity_error()
     transformers_logging.disable_progress_bar()
@@ -695,19 +1209,57 @@ def main():
     if not selected_jobs:
         sys.exit("検証する文がありません。")
 
-    torch.manual_seed(0)
-    torch.cuda.manual_seed_all(0)
+    total_chunk_count = sum(len(job["chunks"]) for job in selected_jobs)
+    total_report_rows = len(selected_jobs) + total_chunk_count
+    print(
+        f"検証対象: {len(selected_jobs)}文 / "
+        f"{total_chunk_count}チャンク / {total_report_rows}レポート行"
+    )
+
+    torch.manual_seed(tts_seed)
+    torch.cuda.manual_seed_all(tts_seed)
 
     qwen_model = load_qwen_model()
-    records = create_alignment_records(qwen_model, selected_jobs)
+    records = create_alignment_records(
+        qwen_model,
+        selected_jobs,
+        ffmpeg_executable,
+        mfa_executable,
+        mfa_environment,
+    )
 
     del qwen_model
     clear_cuda_memory()
 
     whisper_model = load_whisper_model()
-    write_report(records, whisper_model)
+    write_report(
+        records,
+        whisper_model,
+        ffmpeg_executable,
+        mfa_version,
+    )
 
-    print(f"完了: {len(selected_jobs)}文から{len(records)}件の音声を検証しました。")
+    del whisper_model
+    clear_cuda_memory()
+
+    valid_chunk_count = sum(
+        1
+        for record in records
+        if record["row_type"] == "chunk" and record["alignment_valid"]
+    )
+    invalid_sentence_count = sum(
+        1
+        for record in records
+        if record["row_type"] == "sentence" and not record["alignment_valid"]
+    )
+
+    print(
+        f"完了: {len(selected_jobs)}文から{len(records)}件の音声を検証しました。"
+    )
+    print(
+        f"有効な整列チャンク: {valid_chunk_count}件 / "
+        f"整列エラーのある文: {invalid_sentence_count}件"
+    )
     print(f"CSVレポート: {report_path}")
 
 
