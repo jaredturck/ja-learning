@@ -40,6 +40,10 @@ levels_start_marker = "/* AUDIO_LEVELS_START */"
 levels_end_marker = "/* AUDIO_LEVELS_END */"
 qwen_model_name = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
 speaker_name = "Ono_Anna"
+# The verification run found occasional lexical material before or after otherwise
+# correct sentences. Keep the conditioning deliberately minimal so it targets exact
+# preservation of the supplied text without introducing unrelated style concepts.
+voice_instruction = "入力文そのまま"
 # MFA accepts its published Japanese model by this registry name. The aligner is used
 # only to locate known text inside known speech; it is not being asked to transcribe
 # or judge pronunciation quality.
@@ -554,6 +558,7 @@ def generate_sentence_audio(model, text):
             text=[text],
             language=["Japanese"],
             speaker=[speaker_name],
+            instruct=[voice_instruction],
             max_new_tokens=2048,
         )
 
