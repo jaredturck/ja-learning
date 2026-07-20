@@ -10,8 +10,6 @@ import unicodedata
 
 os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 
-# accelerate launch --multi_gpu --num_processes 2 audio/create_audio.py
-
 import flash_attn
 import json5
 import numpy
@@ -33,6 +31,7 @@ work_directory = Path("/tmp/ja_learning_create_audio_work")
 
 ffmpeg_executable = Path("/usr/bin/ffmpeg")
 mfa_executable = Path("/home/jared/miniforge3/envs/mfa/bin/mfa")
+mfa_environment_directory = mfa_executable.parent.parent
 
 levels_start_marker = "/* AUDIO_LEVELS_START */"
 levels_end_marker = "/* AUDIO_LEVELS_END */"
@@ -48,6 +47,9 @@ max_batch_cost = 384
 mfa_num_jobs = 4
 alignment_attempt_count = 3
 alignment_punctuation = " \t\n\r\"'`“”‘’「」『』（）()［］[]【】。、，．,.！？!?・:：;；…"
+
+# accelerate launch --multi_gpu --num_processes 2 audio/create_audio.py
+
 
 def load_levels():
     levels_source = levels_path.read_text(encoding="utf-8")
@@ -414,6 +416,21 @@ def prepare_attempt_directory(attempt_directory):
     (attempt_directory / "mfa").mkdir()
 
 
+def create_mfa_environment():
+    environment = os.environ.copy()
+    mfa_bin_directory = mfa_environment_directory / "bin"
+    current_path = environment.get("PATH", "")
+
+    environment["PATH"] = f"{mfa_bin_directory}{os.pathsep}{current_path}"
+    environment["CONDA_PREFIX"] = str(mfa_environment_directory)
+    environment["CONDA_DEFAULT_ENV"] = mfa_environment_directory.name
+
+    for variable_name in ["PYTHONHOME", "PYTHONPATH", "VIRTUAL_ENV"]:
+        environment.pop(variable_name, None)
+
+    return environment
+
+
 def run_mfa_alignment(attempt_directory):
     result = subprocess.run(
         [
@@ -440,6 +457,7 @@ def run_mfa_alignment(attempt_directory):
         text=True,
         encoding="utf-8",
         errors="replace",
+        env=create_mfa_environment(),
     )
     status = {
         "returncode": result.returncode,
