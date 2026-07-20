@@ -1,3 +1,4 @@
 json5
 numpy
 qwen-tts
+tqdm

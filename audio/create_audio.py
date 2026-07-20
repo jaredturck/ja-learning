@@ -7,7 +7,10 @@ import flash_attn
 import json5
 import numpy
 import torch
+from huggingface_hub.utils import disable_progress_bars
 from qwen_tts import Qwen3TTSModel
+from tqdm import tqdm
+from transformers.utils import logging as transformers_logging
 
 script_directory = Path(__file__).resolve().parent
 project_directory = script_directory.parent
@@ -22,7 +25,7 @@ speaker_name = "Ono_Anna"
 voice_instruction = "日本語学習教材の音声です。入力された日本語だけを、自然で明瞭に、落ち着いた速度で発音してください。"
 silence_seconds = 0.2
 opus_bitrate = "96k"
-batch_size = 8
+batch_size = 16
 
 def load_levels():
     levels_source = levels_path.read_text(encoding="utf-8")
@@ -97,15 +100,15 @@ def generate_audio_batch(model, texts):
 def generate_all_audio(model, texts):
     generated_audio = {}
     sample_rate = None
-    batch_count = (len(texts) + batch_size - 1) // batch_size
+    batch_starts = range(0, len(texts), batch_size)
 
-    for batch_index, batch_start in enumerate(range(0, len(texts), batch_size), start=1):
+    for batch_start in tqdm(
+        batch_starts,
+        desc="音声を生成しています",
+        unit="バッチ",
+        dynamic_ncols=True,
+    ):
         batch_texts = texts[batch_start:batch_start + batch_size]
-        print(f"音声を生成しています [{batch_index}/{batch_count}] ({len(batch_texts)}件)")
-
-        for text in batch_texts:
-            print(f"  {text}")
-
         wavs, current_sample_rate = generate_audio_batch(model, batch_texts)
 
         if sample_rate is None:
@@ -202,7 +205,6 @@ def build_level_audio(level_id, texts, generated_audio, sample_rate):
     level_waveform = numpy.concatenate(audio_parts)
     output_path = output_directory / f"{level_id}.opus"
 
-    print(f"レベル音声を書き出しています: {output_path.name}")
     encode_opus(level_waveform, sample_rate, output_path)
 
     assert set(clips) == set(texts)
@@ -247,8 +249,9 @@ def main():
         for text in texts
     })
 
-    print(f"レベル数: {len(levels)}")
-    print(f"生成する日本語音声: {len(unique_texts)}")
+    disable_progress_bars()
+    transformers_logging.set_verbosity_error()
+    transformers_logging.disable_progress_bar()
 
     check_ffmpeg()
     get_output_paths()
@@ -262,7 +265,7 @@ def main():
     reset_output_directory()
     write_index(levels, level_texts, generated_audio, sample_rate)
 
-    print(f"完了: {output_directory}")
+    print(f"完了: {len(unique_texts)}件の音声を{len(levels)}個のレベル音声ファイルに書き出しました。")
 
 
 if __name__ == "__main__":
