@@ -1,7 +1,11 @@
 from pathlib import Path
+import gc
 import json
+import os
 import subprocess
 import sys
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 import flash_attn
 import json5
@@ -22,7 +26,6 @@ levels_start_marker = "/* AUDIO_LEVELS_START */"
 levels_end_marker = "/* AUDIO_LEVELS_END */"
 model_name = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
 speaker_name = "Ono_Anna"
-voice_instruction = "日本語学習教材の音声です。入力された日本語だけを、自然で明瞭に、落ち着いた速度で発音してください。"
 silence_seconds = 0.2
 opus_bitrate = "96k"
 max_batch_size = 32
@@ -30,12 +33,17 @@ max_batch_cost = 384
 
 def load_levels():
     levels_source = levels_path.read_text(encoding="utf-8")
+
+    if levels_start_marker not in levels_source or levels_end_marker not in levels_source:
+        sys.exit("levels.ts に音声データ用の開始・終了マーカーがありません。")
+
     levels_text = levels_source.split(levels_start_marker, 1)[1]
     levels_text = levels_text.split(levels_end_marker, 1)[0]
     return json5.loads(levels_text)
 
 def add_unique_text(texts, seen_texts, text):
-    assert text
+    if not text:
+        sys.exit("空の日本語テキストが見つかりました。")
 
     if text in seen_texts:
         return
@@ -73,7 +81,8 @@ def check_ffmpeg():
     )
 
 def load_model():
-    assert torch.cuda.is_available()
+    if not torch.cuda.is_available():
+        sys.exit("CUDA対応GPUが見つかりません。")
 
     print(f"GPU: {torch.cuda.get_device_name(0)}")
     print(f"FlashAttention: {flash_attn.__version__}")
@@ -92,11 +101,43 @@ def generate_audio_batch(model, texts):
         text=texts,
         language=["Japanese"] * len(texts),
         speaker=[speaker_name] * len(texts),
-        instruct=[voice_instruction] * len(texts),
+        max_new_tokens=2048,
     )
 
-    assert len(wavs) == len(texts)
+    if len(wavs) != len(texts):
+        sys.exit("入力した日本語テキスト数と生成された音声数が一致しません。")
+
     return wavs, sample_rate
+
+def clear_cuda_memory():
+    gc.collect()
+    torch.cuda.empty_cache()
+
+def try_generate_audio_batch(model, texts):
+    try:
+        return generate_audio_batch(model, texts)
+    except torch.OutOfMemoryError:
+        return None
+
+def generate_audio_batch_with_retry(model, texts):
+    result = try_generate_audio_batch(model, texts)
+
+    if result is not None:
+        wavs, sample_rate = result
+        return [(texts, wavs, sample_rate)]
+
+    clear_cuda_memory()
+
+    if len(texts) == 1:
+        sys.exit(f"1件の音声生成でもGPUメモリが不足しました: {texts[0]}")
+
+    middle = len(texts) // 2
+    left_results = generate_audio_batch_with_retry(model, texts[:middle])
+    clear_cuda_memory()
+    right_results = generate_audio_batch_with_retry(model, texts[middle:])
+    clear_cuda_memory()
+
+    return [*left_results, *right_results]
 
 def create_audio_batches(texts):
     sorted_texts = sorted(texts, key=lambda text: (len(text), text))
@@ -133,20 +174,37 @@ def generate_all_audio(model, texts):
         unit="バッチ",
         dynamic_ncols=True,
     ):
-        wavs, current_sample_rate = generate_audio_batch(model, batch_texts)
+        batch_results = generate_audio_batch_with_retry(model, batch_texts)
 
-        if sample_rate is None:
-            sample_rate = current_sample_rate
+        for result_texts, wavs, current_sample_rate in batch_results:
+            if sample_rate is None:
+                sample_rate = current_sample_rate
 
-        assert current_sample_rate == sample_rate
+            if current_sample_rate != sample_rate:
+                sys.exit("生成された音声のサンプルレートが一致しません。")
 
-        for text, waveform in zip(batch_texts, wavs, strict=True):
-            waveform = numpy.asarray(waveform, dtype=numpy.float32).reshape(-1)
-            assert waveform.size > 0
-            assert text not in generated_audio
-            generated_audio[text] = waveform
+            for text, waveform in zip(result_texts, wavs, strict=True):
+                waveform = numpy.asarray(waveform, dtype=numpy.float32).reshape(-1)
 
-    assert set(generated_audio) == set(texts)
+                if waveform.size == 0:
+                    sys.exit(f"空の音声が生成されました: {text}")
+
+                if text in generated_audio:
+                    sys.exit(f"同じ日本語テキストの音声が重複して生成されました: {text}")
+
+                generated_audio[text] = waveform
+
+    if set(generated_audio) != set(texts):
+        missing_texts = set(texts) - set(generated_audio)
+        unexpected_texts = set(generated_audio) - set(texts)
+        sys.exit(
+            "生成音声の確認に失敗しました。"
+            f" 未生成: {len(missing_texts)}件、想定外: {len(unexpected_texts)}件"
+        )
+
+    if sample_rate is None:
+        sys.exit("音声が1件も生成されませんでした。")
+
     return generated_audio, sample_rate
 
 def get_output_paths():
@@ -208,8 +266,8 @@ def encode_opus(waveform, sample_rate, output_path):
         check=True,
     )
 
-    assert output_path.exists()
-    assert output_path.stat().st_size > 0
+    if not output_path.exists() or output_path.stat().st_size == 0:
+        sys.exit(f"Opusファイルの作成に失敗しました: {output_path}")
 
 def build_level_audio(level_id, texts, generated_audio, sample_rate):
     silence = numpy.zeros(round(sample_rate * silence_seconds), dtype=numpy.float32)
@@ -231,7 +289,8 @@ def build_level_audio(level_id, texts, generated_audio, sample_rate):
 
     encode_opus(level_waveform, sample_rate, output_path)
 
-    assert set(clips) == set(texts)
+    if set(clips) != set(texts):
+        sys.exit(f"レベル音声のインデックス作成に失敗しました: {level_id}")
 
     return {
         "file": output_path.name,
@@ -261,8 +320,11 @@ def write_index(levels, level_texts, generated_audio, sample_rate):
         encoding="utf-8",
     )
 
-    assert index_path.exists()
-    assert set(index["levels"]) == {level["id"] for level in levels}
+    if not index_path.exists() or index_path.stat().st_size == 0:
+        sys.exit("音声インデックスの作成に失敗しました。")
+
+    if set(index["levels"]) != {level["id"] for level in levels}:
+        sys.exit("音声インデックスのレベル一覧が levels.ts と一致しません。")
 
 def main():
     levels = load_levels()
