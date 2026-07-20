@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 
 import json5
 import numpy
@@ -75,9 +75,12 @@ report_fields = [
 ]
 
 
-def check_command(command, message):
+def check_command(command, arguments, message):
+    if shutil.which(command) is None:
+        sys.exit(message)
+
     result = subprocess.run(
-        [command, "--version"],
+        [command, *arguments],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -87,8 +90,12 @@ def check_command(command, message):
 
 
 def check_tools():
-    check_command("ffmpeg", "FFmpeg が見つかりません。")
-    check_command("mfa", "Montreal Forced Aligner の mfa コマンドが見つかりません。")
+    check_command("ffmpeg", ["-version"], "FFmpeg が見つかりません。")
+    check_command(
+        "mfa",
+        ["--version"],
+        "Montreal Forced Aligner の mfa コマンドが見つかりません。",
+    )
 
 
 def load_levels():
