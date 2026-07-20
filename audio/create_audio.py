@@ -3,6 +3,7 @@ import json
 import subprocess
 import sys
 
+import flash_attn
 import json5
 import numpy
 import torch
@@ -21,6 +22,7 @@ speaker_name = "Ono_Anna"
 voice_instruction = "日本語学習教材の音声です。入力された日本語だけを、自然で明瞭に、落ち着いた速度で発音してください。"
 silence_seconds = 0.2
 opus_bitrate = "96k"
+batch_size = 8
 
 def load_levels():
     levels_source = levels_path.read_text(encoding="utf-8")
@@ -70,40 +72,54 @@ def load_model():
     assert torch.cuda.is_available()
 
     print(f"GPU: {torch.cuda.get_device_name(0)}")
+    print(f"FlashAttention: {flash_attn.__version__}")
+    print(f"バッチサイズ: {batch_size}")
     print(f"モデルを読み込んでいます: {model_name}")
 
     return Qwen3TTSModel.from_pretrained(
         model_name,
         device_map="cuda:0",
         dtype=torch.bfloat16,
+        attn_implementation="flash_attention_2",
     )
 
-def generate_audio(model, text):
+def generate_audio_batch(model, texts):
     wavs, sample_rate = model.generate_custom_voice(
-        text=text,
-        language="Japanese",
-        speaker=speaker_name,
-        instruct=voice_instruction,
+        text=texts,
+        language=["Japanese"] * len(texts),
+        speaker=[speaker_name] * len(texts),
+        instruct=[voice_instruction] * len(texts),
     )
 
-    waveform = numpy.asarray(wavs[0], dtype=numpy.float32).reshape(-1)
-    assert waveform.size > 0
-    return waveform, sample_rate
+    assert len(wavs) == len(texts)
+    return wavs, sample_rate
 
 def generate_all_audio(model, texts):
     generated_audio = {}
     sample_rate = None
+    batch_count = (len(texts) + batch_size - 1) // batch_size
 
-    for text_index, text in enumerate(texts, start=1):
-        print(f"音声を生成しています [{text_index}/{len(texts)}]: {text}")
-        waveform, current_sample_rate = generate_audio(model, text)
+    for batch_index, batch_start in enumerate(range(0, len(texts), batch_size), start=1):
+        batch_texts = texts[batch_start:batch_start + batch_size]
+        print(f"音声を生成しています [{batch_index}/{batch_count}] ({len(batch_texts)}件)")
+
+        for text in batch_texts:
+            print(f"  {text}")
+
+        wavs, current_sample_rate = generate_audio_batch(model, batch_texts)
 
         if sample_rate is None:
             sample_rate = current_sample_rate
 
         assert current_sample_rate == sample_rate
-        generated_audio[text] = waveform
 
+        for text, waveform in zip(batch_texts, wavs, strict=True):
+            waveform = numpy.asarray(waveform, dtype=numpy.float32).reshape(-1)
+            assert waveform.size > 0
+            assert text not in generated_audio
+            generated_audio[text] = waveform
+
+    assert set(generated_audio) == set(texts)
     return generated_audio, sample_rate
 
 def get_output_paths():
