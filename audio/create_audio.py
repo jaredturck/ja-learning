@@ -11,6 +11,8 @@ import flash_attn
 import json5
 import numpy
 import torch
+from accelerate import Accelerator
+from accelerate.utils import gather_object
 from huggingface_hub.utils import disable_progress_bars
 from qwen_tts import Qwen3TTSModel
 from tqdm import tqdm
@@ -28,8 +30,10 @@ model_name = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
 speaker_name = "Ono_Anna"
 silence_seconds = 0.2
 opus_bitrate = "96k"
-max_batch_size = 32
+max_batch_size = 24
 max_batch_cost = 384
+
+# accelerate launch --multi_gpu --num_processes 2 audio/create_audio.py
 
 def load_levels():
     levels_source = levels_path.read_text(encoding="utf-8")
@@ -80,18 +84,25 @@ def check_ffmpeg():
         check=True,
     )
 
-def load_model():
+def load_model(accelerator):
     if not torch.cuda.is_available():
         sys.exit("CUDA対応GPUが見つかりません。")
 
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
-    print(f"FlashAttention: {flash_attn.__version__}")
-    print(f"最大バッチサイズ: {max_batch_size}")
-    print(f"モデルを読み込んでいます: {model_name}")
+    torch.cuda.set_device(accelerator.device)
+
+    if accelerator.is_main_process:
+        print(f"使用GPU数: {accelerator.num_processes}")
+
+        for gpu_index in range(accelerator.num_processes):
+            print(f"GPU {gpu_index}: {torch.cuda.get_device_name(gpu_index)}")
+
+        print(f"FlashAttention: {flash_attn.__version__}")
+        print(f"最大バッチサイズ: {max_batch_size}")
+        print(f"モデルを読み込んでいます: {model_name}")
 
     return Qwen3TTSModel.from_pretrained(
         model_name,
-        device_map="cuda:0",
+        device_map=str(accelerator.device),
         dtype=torch.bfloat16,
         attn_implementation="flash_attention_2",
     )
@@ -163,15 +174,25 @@ def create_audio_batches(texts):
 
     return batches
 
-def generate_all_audio(model, texts):
+def get_local_batches(batches, accelerator):
+    return batches[accelerator.process_index::accelerator.num_processes]
+
+def generate_local_audio(model, texts, accelerator):
     generated_audio = {}
     sample_rate = None
     batches = create_audio_batches(texts)
+    local_batches = get_local_batches(batches, accelerator)
+    local_texts = {
+        text
+        for batch_texts in local_batches
+        for text in batch_texts
+    }
 
     for batch_texts in tqdm(
-        batches,
-        desc="音声を生成しています",
+        local_batches,
+        desc=f"GPU {accelerator.local_process_index}",
         unit="バッチ",
+        position=accelerator.local_process_index,
         dynamic_ncols=True,
     ):
         batch_results = generate_audio_batch_with_retry(model, batch_texts)
@@ -194,6 +215,39 @@ def generate_all_audio(model, texts):
 
                 generated_audio[text] = waveform
 
+    if set(generated_audio) != local_texts:
+        missing_texts = local_texts - set(generated_audio)
+        unexpected_texts = set(generated_audio) - local_texts
+        sys.exit(
+            "ローカル生成音声の確認に失敗しました。"
+            f" 未生成: {len(missing_texts)}件、想定外: {len(unexpected_texts)}件"
+        )
+
+    if local_batches and sample_rate is None:
+        sys.exit("担当した音声が1件も生成されませんでした。")
+
+    return generated_audio, sample_rate
+
+def merge_generated_audio(gathered_results, texts):
+    generated_audio = {}
+    sample_rate = None
+
+    for process_result in gathered_results:
+        current_sample_rate = process_result["sample_rate"]
+
+        if current_sample_rate is not None:
+            if sample_rate is None:
+                sample_rate = current_sample_rate
+
+            if current_sample_rate != sample_rate:
+                sys.exit("GPU間で生成された音声のサンプルレートが一致しません。")
+
+        for text, waveform in process_result["generated_audio"].items():
+            if text in generated_audio:
+                sys.exit(f"GPU間で同じ日本語テキストの音声が重複しました: {text}")
+
+            generated_audio[text] = waveform
+
     if set(generated_audio) != set(texts):
         missing_texts = set(texts) - set(generated_audio)
         unexpected_texts = set(generated_audio) - set(texts)
@@ -206,6 +260,18 @@ def generate_all_audio(model, texts):
         sys.exit("音声が1件も生成されませんでした。")
 
     return generated_audio, sample_rate
+
+def gather_generated_audio(accelerator, local_generated_audio, local_sample_rate, texts):
+    local_result = {
+        "sample_rate": local_sample_rate,
+        "generated_audio": local_generated_audio,
+    }
+    gathered_results = gather_object([local_result])
+
+    if not accelerator.is_main_process:
+        return None, None
+
+    return merge_generated_audio(gathered_results, texts)
 
 def get_output_paths():
     public_directory.mkdir(parents=True, exist_ok=True)
@@ -327,6 +393,7 @@ def write_index(levels, level_texts, generated_audio, sample_rate):
         sys.exit("音声インデックスのレベル一覧が levels.ts と一致しません。")
 
 def main():
+    accelerator = Accelerator()
     levels = load_levels()
     level_texts = collect_level_texts(levels)
     unique_texts = {
@@ -339,20 +406,39 @@ def main():
     transformers_logging.set_verbosity_error()
     transformers_logging.disable_progress_bar()
 
-    check_ffmpeg()
-    get_output_paths()
+    if accelerator.is_main_process:
+        check_ffmpeg()
+        get_output_paths()
+
+    accelerator.wait_for_everyone()
 
     torch.manual_seed(0)
     torch.cuda.manual_seed_all(0)
 
-    model = load_model()
-    generated_audio, sample_rate = generate_all_audio(model, unique_texts)
+    model = load_model(accelerator)
+    local_generated_audio, local_sample_rate = generate_local_audio(
+        model,
+        unique_texts,
+        accelerator,
+    )
 
-    reset_output_directory()
-    write_index(levels, level_texts, generated_audio, sample_rate)
+    del model
+    clear_cuda_memory()
+    accelerator.wait_for_everyone()
 
-    print(f"完了: {len(unique_texts)}件の音声を{len(levels)}個のレベル音声ファイルに書き出しました。")
+    generated_audio, sample_rate = gather_generated_audio(
+        accelerator,
+        local_generated_audio,
+        local_sample_rate,
+        unique_texts,
+    )
 
+    if accelerator.is_main_process:
+        reset_output_directory()
+        write_index(levels, level_texts, generated_audio, sample_rate)
+        print(f"完了: {len(unique_texts)}件の音声を{len(levels)}個のレベル音声ファイルに書き出しました。")
+
+    accelerator.wait_for_everyone()
 
 if __name__ == "__main__":
     main()
