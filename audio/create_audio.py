@@ -25,7 +25,8 @@ speaker_name = "Ono_Anna"
 voice_instruction = "日本語学習教材の音声です。入力された日本語だけを、自然で明瞭に、落ち着いた速度で発音してください。"
 silence_seconds = 0.2
 opus_bitrate = "96k"
-batch_size = 32
+max_batch_size = 32
+max_batch_cost = 384
 
 def load_levels():
     levels_source = levels_path.read_text(encoding="utf-8")
@@ -76,7 +77,7 @@ def load_model():
 
     print(f"GPU: {torch.cuda.get_device_name(0)}")
     print(f"FlashAttention: {flash_attn.__version__}")
-    print(f"バッチサイズ: {batch_size}")
+    print(f"最大バッチサイズ: {max_batch_size}")
     print(f"モデルを読み込んでいます: {model_name}")
 
     return Qwen3TTSModel.from_pretrained(
@@ -97,18 +98,41 @@ def generate_audio_batch(model, texts):
     assert len(wavs) == len(texts)
     return wavs, sample_rate
 
+def create_audio_batches(texts):
+    sorted_texts = sorted(texts, key=lambda text: (len(text), text))
+    batches = []
+    current_batch = []
+    current_max_length = 0
+
+    for text in sorted_texts:
+        next_batch_size = len(current_batch) + 1
+        next_max_length = max(current_max_length, len(text))
+        next_batch_cost = next_batch_size * next_max_length
+
+        if current_batch and (next_batch_size > max_batch_size or next_batch_cost > max_batch_cost):
+            batches.append(current_batch)
+            current_batch = []
+            current_max_length = 0
+
+        current_batch.append(text)
+        current_max_length = max(current_max_length, len(text))
+
+    if current_batch:
+        batches.append(current_batch)
+
+    return batches
+
 def generate_all_audio(model, texts):
     generated_audio = {}
     sample_rate = None
-    batch_starts = range(0, len(texts), batch_size)
+    batches = create_audio_batches(texts)
 
-    for batch_start in tqdm(
-        batch_starts,
+    for batch_texts in tqdm(
+        batches,
         desc="音声を生成しています",
         unit="バッチ",
         dynamic_ncols=True,
     ):
-        batch_texts = texts[batch_start:batch_start + batch_size]
         wavs, current_sample_rate = generate_audio_batch(model, batch_texts)
 
         if sample_rate is None:
@@ -243,11 +267,11 @@ def write_index(levels, level_texts, generated_audio, sample_rate):
 def main():
     levels = load_levels()
     level_texts = collect_level_texts(levels)
-    unique_texts = sorted({
+    unique_texts = {
         text
         for texts in level_texts.values()
         for text in texts
-    })
+    }
 
     disable_progress_bars()
     transformers_logging.set_verbosity_error()
