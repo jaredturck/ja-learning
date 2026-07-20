@@ -12,6 +12,9 @@ import tempfile
 import unicodedata
 import wave
 
+# This must be set before importing PyTorch. Long generative audio outputs can fragment
+# the CUDA allocator, so expandable segments reduce avoidable OOM failures without
+# changing the model or generation settings.
 os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 
 import json5
@@ -23,15 +26,23 @@ from qwen_tts import Qwen3TTSModel
 from tqdm import tqdm
 from transformers.utils import logging as transformers_logging
 
+# Keep the experiment anchored to the repository rather than the caller's working
+# directory. This lets the same command work from either the project root or audio/.
 script_directory = Path(__file__).resolve().parent
 project_directory = script_directory.parent
 levels_path = project_directory / "src" / "levels.ts"
 report_path = script_directory / "alignment_verification_report.csv"
 
+# The lesson data in levels.ts is the authoritative source. This experiment must test
+# the same Japanese strings and chunk boundaries used by the frontend rather than
+# maintaining a second, easily diverged copy of the curriculum.
 levels_start_marker = "/* AUDIO_LEVELS_START */"
 levels_end_marker = "/* AUDIO_LEVELS_END */"
 qwen_model_name = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
 speaker_name = "Ono_Anna"
+# MFA accepts its published Japanese model by this registry name. The aligner is used
+# only to locate known text inside known speech; it is not being asked to transcribe
+# or judge pronunciation quality.
 mfa_model_name = "japanese_mfa"
 whisper_model_name = "large-v3"
 whisper_language = "ja"
@@ -41,10 +52,17 @@ selection_seed = 0
 tts_seed = 0
 gpu_index = 0
 whisper_sample_rate = 16000
+# MFA is CPU-heavy even though Qwen and Whisper run on the GPU. Capping its worker
+# count keeps this one-off test from monopolizing the machine while still allowing
+# the corpus alignment to run in parallel.
 mfa_num_jobs = max(1, min(4, os.cpu_count() or 1))
 
 alignment_punctuation = " \t\n\r\"'`“”‘’「」『』（）()［］[]【】。、，．,.！？!?・:：;；…"
 
+# The CSV intentionally records raw evidence rather than a programmatic pass/fail
+# score. Expected text, alignment metadata, audio measurements, and Whisper output
+# are retained so a later language-aware review can distinguish TTS, alignment,
+# and ASR failures instead of collapsing them into one number.
 report_fields = [
     "report_row_number",
     "sentence_sample_number",
@@ -109,6 +127,9 @@ def command_output(result):
     return "\n\n".join(output_parts)
 
 
+# Native-tool failures previously looked like generic "command not found" errors.
+# Preserve stdout, stderr, the exact command, and its exit code so the next failure
+# points to the real dependency or argument problem instead of starting whack-a-mole.
 def run_text_command(command, description, environment=None):
     result = subprocess.run(
         [str(part) for part in command],
@@ -152,6 +173,9 @@ def find_ffmpeg_executable():
     return ffmpeg_path
 
 
+# MFA carries native Kaldi dependencies and therefore lives in its own Conda
+# environment. Discover its executable directly so normal use requires only the
+# project .venv; users should not have to stack or repeatedly activate environments.
 def find_mfa_executable():
     candidates = []
     environment_path = os.environ.get("MFA_EXECUTABLE")
@@ -212,6 +236,10 @@ def find_mfa_executable():
     )
 
 
+# Calling the MFA binary by absolute path is not sufficient if it inherits Python or
+# virtual-environment variables from the project .venv. Build a minimal process
+# environment that points MFA at its own binaries and native libraries while leaving
+# the parent Python process untouched.
 def create_mfa_environment(mfa_executable):
     environment = os.environ.copy()
     mfa_bin_directory = mfa_executable.parent
@@ -228,6 +256,9 @@ def create_mfa_environment(mfa_executable):
     return environment
 
 
+# Validate every external command before loading multi-gigabyte models. In particular,
+# checking the actual align_hf subcommand catches an incompatible MFA installation
+# before any expensive TTS work begins.
 def check_tools():
     ffmpeg_executable = find_ffmpeg_executable()
     ffmpeg_result = run_text_command(
@@ -262,6 +293,9 @@ def check_tools():
     return ffmpeg_executable, mfa_executable, mfa_environment, mfa_version
 
 
+# Require exactly one marker pair. Silently choosing the first of several matching
+# blocks could test stale or unrelated lesson data while still producing a believable
+# report.
 def load_levels():
     if not levels_path.is_file():
         sys.exit(f"levels.ts が見つかりません: {levels_path}")
@@ -296,6 +330,9 @@ def normalize_text(text):
     return unicodedata.normalize("NFC", str(text))
 
 
+# Punctuation remains in the natural sentence sent to Qwen because it can affect
+# phrasing. It is removed only from the space-delimited MFA token, where punctuation
+# is not a spoken chunk and would otherwise create an artificial alignment target.
 def get_alignment_token(text):
     token = normalize_text(text).strip(alignment_punctuation)
 
@@ -305,6 +342,9 @@ def get_alignment_token(text):
     return normalize_text(text).strip()
 
 
+# Qwen receives the complete sentence for linguistic context. The existing curriculum
+# chunks are supplied separately to MFA so the resulting short clips inherit the
+# sentence-level reading instead of asking TTS to pronounce isolated particles.
 def collect_sentence_jobs(levels):
     jobs = []
     level_ids = set()
@@ -381,6 +421,9 @@ def collect_sentence_jobs(levels):
     return jobs
 
 
+# Selection is deterministic and spread across levels. Reusing the same sample makes
+# before/after reports comparable and avoids a random easy or difficult subset hiding
+# a pipeline regression.
 def select_sentence_jobs(jobs):
     if sentence_sample_count <= 0:
         sys.exit("sentence_sample_count は1以上である必要があります。")
@@ -451,6 +494,9 @@ def validate_gpu():
     torch.cuda.set_device(gpu_index)
 
 
+# Qwen and Whisper are intentionally loaded in separate stages rather than competing
+# for VRAM. Garbage collection, synchronization, and cache release are all needed
+# before the second model is loaded; deleting only the local variable is insufficient.
 def clear_cuda_memory():
     gc.collect()
 
@@ -472,6 +518,9 @@ def load_qwen_model():
     )
 
 
+# Reject unexpected channel layouts, invalid sample rates, and non-finite samples at
+# the model boundary. Flattening arbitrary shapes or forwarding NaNs could create
+# corrupt WAV files that fail much later and are harder to attribute to Qwen.
 def normalize_generated_waveform(waveform, sample_rate, text):
     waveform = numpy.asarray(waveform)
 
@@ -576,6 +625,9 @@ def write_wav(ffmpeg_executable, path, waveform, sample_rate):
         )
 
 
+# MFA requires ordinary audio and transcript files, but they are implementation
+# details of this experiment. They are written only inside TemporaryDirectory so the
+# CSV remains the sole persistent output.
 def write_alignment_corpus(ffmpeg_executable, corpus_directory, selected_jobs, model):
     generated_sentences = []
 
@@ -607,6 +659,9 @@ def write_alignment_corpus(ffmpeg_executable, corpus_directory, selected_jobs, m
     return generated_sentences
 
 
+# Align the selected sentences as one corpus. Repeated align_one_hf calls would reload
+# MFA and its acoustic resources for every sentence, greatly increasing runtime and
+# creating more opportunities for partial or stale outputs.
 def run_mfa_corpus_alignment(
     mfa_executable,
     mfa_environment,
@@ -614,6 +669,9 @@ def run_mfa_corpus_alignment(
     aligned_directory,
     mfa_temporary_directory,
 ):
+    # All generated speech uses the same Qwen speaker, so MFA can safely treat this as
+    # a single-speaker corpus. The explicit curriculum spaces are preserved by disabling
+    # automatic tokenization, and G2P covers words absent from the bundled dictionary.
     command = [
         mfa_executable,
         "align_hf",
@@ -642,6 +700,9 @@ def run_mfa_corpus_alignment(
     )
 
 
+# Require a one-to-one filename match. Falling back to whichever JSON happens to be
+# present can silently pair one sentence with another sentence's timestamps, which is
+# more dangerous than a clean failure because the resulting CSV still looks valid.
 def find_alignment_path(aligned_directory, file_stem):
     matching_paths = sorted(aligned_directory.rglob(f"{file_stem}.json"))
 
@@ -706,6 +767,9 @@ def parse_word_entries(alignment_path):
     return word_entries
 
 
+# Alignment is all-or-nothing for chunk extraction. Japanese sentences often repeat
+# particles such as に, の, and は, so a missing token cannot be safely repaired by
+# searching for matching text; every following positional boundary could be shifted.
 def validate_alignment(job, word_entries, waveform, sample_rate):
     expected_tokens = job["alignment_tokens"]
     actual_labels = [entry["label"] for entry in word_entries]
@@ -768,6 +832,9 @@ def validate_alignment(job, word_entries, waveform, sample_rate):
     return "; ".join(errors), actual_labels
 
 
+# Do not clamp malformed timestamps into the source waveform. Clamping would turn an
+# invalid alignment into plausible but incorrectly labelled audio and contaminate the
+# report used to judge TTS quality.
 def extract_clip(waveform, sample_rate, start_seconds, end_seconds):
     start_sample = round(start_seconds * sample_rate)
     end_sample = round(end_seconds * sample_rate)
@@ -782,6 +849,10 @@ def extract_clip(waveform, sample_rate, start_seconds, end_seconds):
     return waveform[start_sample:end_sample].copy()
 
 
+# Full-sentence rows remain useful even when alignment fails. Chunk waveforms are only
+# attached after the complete alignment passes validation, preventing Whisper output
+# from being attributed to the wrong expected chunk. This is report-integrity logic,
+# not frontend playback suppression.
 def create_audio_record(
     generated_sentence,
     row_type,
@@ -853,6 +924,9 @@ def create_audio_record(
     }
 
 
+# The temporary workspace contains every intermediate WAV, LAB, MFA database, and JSON
+# result. Leaving the scope removes all of it automatically after the in-memory records
+# have been built.
 def create_alignment_records(
     model,
     selected_jobs,
@@ -1007,6 +1081,10 @@ def segment_float(segment, key):
     return float(value)
 
 
+# Whisper is deliberately used as a neutral measurement layer: Japanese transcription,
+# no translation, and no previous-clip conditioning. The usual suppression thresholds
+# remain disabled to preserve raw output for tiny clips and to keep this report directly
+# comparable with the earlier verification run; the script itself does not grade it.
 def transcribe_clip(model, ffmpeg_executable, waveform, sample_rate):
     if waveform.size == 0:
         return "", []
@@ -1149,6 +1227,9 @@ def create_report_row(
     }
 
 
+# Build the report beside the destination and replace it only after every row succeeds.
+# A failed run therefore cannot leave a half-written CSV that might be mistaken for a
+# completed quality report.
 def write_report(records, model, ffmpeg_executable, mfa_version):
     with tempfile.TemporaryDirectory(
         prefix=".alignment_report_",
@@ -1196,6 +1277,9 @@ def write_report(records, model, ffmpeg_executable, mfa_version):
         temporary_report_path.replace(report_path)
 
 
+# The pipeline is staged deliberately: validate dependencies, generate contextual
+# sentence audio, align and extract chunks, release Qwen, then load Whisper and write
+# the single final CSV. Keeping those phases separate protects both VRAM and provenance.
 def main():
     ffmpeg_executable, mfa_executable, mfa_environment, mfa_version = check_tools()
     disable_progress_bars()
