@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Check, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Lock, RotateCcw } from 'lucide-react'
 import { levels } from './levels'
 import type { QuizLevel, QuizSentence, SentenceChunk } from './levels'
 
@@ -246,19 +246,32 @@ function EmptyCurriculum() {
     )
 }
 
-function LevelStatus({ level, level_index, completed_count }: {
+function LevelStatus({ level, level_index, completed_count, is_sidebar_open, on_toggle_sidebar }: {
     level: QuizLevel
     level_index: number
     completed_count: number
+    is_sidebar_open: boolean
+    on_toggle_sidebar: () => void
 }) {
     const level_progress = (completed_count / level.sentences.length) * 100
 
     return (
-        <div className="shrink-0">
+        <div className="relative z-30 shrink-0">
             <div className="flex items-center justify-between gap-4 text-sm">
-                <div className="min-w-0">
-                    <span className="font-semibold text-violet-400">レベル {get_level_number(level_index)}</span>
-                </div>
+                <button
+                    aria-controls="course-sidebar"
+                    aria-expanded={is_sidebar_open}
+                    aria-label={`コース一覧を${is_sidebar_open ? '閉じる' : '開く'}`}
+                    className="flex min-w-0 items-center gap-1.5 rounded-lg font-semibold text-violet-400 transition hover:text-violet-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-400"
+                    onClick={on_toggle_sidebar}
+                    type="button"
+                >
+                    <span>レベル {get_level_number(level_index)}</span>
+                    <ChevronDown
+                        className={`transition-transform duration-200 ${is_sidebar_open ? 'rotate-180' : ''}`}
+                        size={15}
+                    />
+                </button>
                 <span className="shrink-0 tabular-nums text-slate-500">
                     {Math.min(completed_count + 1, level.sentences.length)} / {level.sentences.length}
                 </span>
@@ -270,6 +283,144 @@ function LevelStatus({ level, level_index, completed_count }: {
                 />
             </div>
         </div>
+    )
+}
+
+function CourseSidebar({ active_level_index, completed_sentence_ids, is_open, on_close, on_select_level }: {
+    active_level_index: number
+    completed_sentence_ids: string[]
+    is_open: boolean
+    on_close: () => void
+    on_select_level: (level_index: number) => void
+}) {
+    const active_level_ref = useRef<HTMLButtonElement | null>(null)
+    const total_sentence_count = levels.reduce((total, level) => total + level.sentences.length, 0)
+    const completed_sentence_count = levels.reduce(
+        (total, level) => total + get_completed_count(level, completed_sentence_ids),
+        0,
+    )
+    const completed_level_count = levels.filter(
+        (level) => get_completed_count(level, completed_sentence_ids) === level.sentences.length,
+    ).length
+    const current_course_level_index = get_initial_level_index(completed_sentence_ids)
+    const course_progress = total_sentence_count === 0
+        ? 0
+        : (completed_sentence_count / total_sentence_count) * 100
+
+    useEffect(() => {
+        if (is_open) {
+            active_level_ref.current?.scrollIntoView({ block: 'center' })
+        }
+    }, [active_level_index, is_open])
+
+    return (
+        <>
+            <button
+                aria-label="コース一覧を閉じる"
+                className={`fixed inset-x-0 bottom-0 top-16 z-10 bg-black/55 backdrop-blur-[2px] transition-opacity duration-200 ${
+                    is_open ? 'opacity-100' : 'pointer-events-none opacity-0'
+                }`}
+                onClick={on_close}
+                type="button"
+            />
+            <aside
+                aria-hidden={!is_open}
+                className={`fixed bottom-0 left-0 top-16 z-20 flex w-[min(24rem,calc(100vw-1rem))] flex-col border-r border-t border-slate-800 bg-slate-950/98 shadow-2xl shadow-black/40 transition-transform duration-200 ${
+                    is_open ? 'pointer-events-auto translate-x-0' : 'pointer-events-none -translate-x-full'
+                }`}
+                id="course-sidebar"
+                inert={!is_open}
+            >
+                <div className="shrink-0 border-b border-slate-800 p-5">
+                    <div className="flex items-end justify-between gap-4">
+                        <div>
+                            <p className="text-xs font-semibold tracking-[0.16em] text-violet-400">コース進捗</p>
+                            <p className="mt-1 text-3xl font-semibold tabular-nums text-white">
+                                {Math.round(course_progress)}%
+                            </p>
+                        </div>
+                        <p className="pb-1 text-sm tabular-nums text-slate-400">
+                            {completed_level_count} / {levels.length} レベル
+                        </p>
+                    </div>
+                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-800">
+                        <div
+                            className="h-full rounded-full bg-violet-500 transition-[width] duration-300"
+                            style={{ width: `${course_progress}%` }}
+                        />
+                    </div>
+                    <p className="mt-2 text-xs tabular-nums text-slate-500">
+                        {completed_sentence_count} / {total_sentence_count} 文を完了
+                    </p>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-scroll p-3">
+                    <div className="space-y-2">
+                        {levels.map((level, level_index) => {
+                            const level_completed_count = get_completed_count(level, completed_sentence_ids)
+                            const is_complete = level_completed_count === level.sentences.length
+                            const is_current_course_level = level_index === current_course_level_index
+                            const is_unlocked = is_complete || is_current_course_level
+                            const is_active = level_index === active_level_index
+
+                            return (
+                                <button
+                                    aria-current={is_active ? 'step' : undefined}
+                                    className={`flex w-full items-start gap-3 rounded-2xl border p-3 text-left transition ${
+                                        is_active
+                                            ? 'border-violet-500 bg-violet-500/10'
+                                            : is_unlocked
+                                                ? 'border-slate-800 bg-slate-900/70 hover:border-slate-700 hover:bg-slate-900'
+                                                : 'cursor-not-allowed border-transparent bg-slate-900/25 opacity-40'
+                                    }`}
+                                    disabled={!is_unlocked}
+                                    key={level.id}
+                                    onClick={() => on_select_level(level_index)}
+                                    ref={is_active ? active_level_ref : null}
+                                    type="button"
+                                >
+                                    <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                                        is_complete
+                                            ? 'bg-emerald-400/10 text-emerald-300'
+                                            : is_unlocked
+                                                ? 'bg-violet-400/10 text-violet-300'
+                                                : 'bg-slate-800 text-slate-500'
+                                    }`}>
+                                        {is_complete ? (
+                                            <Check size={16} strokeWidth={2.5} />
+                                        ) : is_unlocked ? (
+                                            <ChevronRight size={17} />
+                                        ) : (
+                                            <Lock size={15} />
+                                        )}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="flex items-center justify-between gap-3">
+                                            <span className={`text-xs font-semibold tracking-[0.12em] ${
+                                                is_active ? 'text-violet-300' : 'text-slate-500'
+                                            }`}>
+                                                レベル {get_level_number(level_index)}
+                                            </span>
+                                            <span className="shrink-0 text-xs tabular-nums text-slate-600">
+                                                {level_completed_count} / {level.sentences.length}
+                                            </span>
+                                        </span>
+                                        <span className={`mt-1 block font-semibold ${
+                                            is_unlocked ? 'text-slate-100' : 'text-slate-500'
+                                        }`}>
+                                            {level.title}
+                                        </span>
+                                        <span className="mt-1 block text-xs leading-relaxed text-slate-500">
+                                            {level.description}
+                                        </span>
+                                    </span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            </aside>
+        </>
     )
 }
 
@@ -445,6 +596,7 @@ function App() {
     const [feedback_state, set_feedback_state] = useState<'correct' | 'wrong' | 'complete' | null>(null)
     const [is_locked, set_is_locked] = useState(false)
     const [option_seed, set_option_seed] = useState(0)
+    const [is_sidebar_open, set_is_sidebar_open] = useState(false)
     const feedback_timeout = useRef<number | null>(null)
 
     const active_level = levels[active_level_index]
@@ -529,6 +681,15 @@ function App() {
 
     useEffect(() => {
         const handle_key_down = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && is_sidebar_open) {
+                set_is_sidebar_open(false)
+                return
+            }
+
+            if (is_sidebar_open) {
+                return
+            }
+
             const option_index = Number(event.key) - 1
 
             if (option_index < 0 || option_index > 3 || !options[option_index] || is_locked) {
@@ -601,6 +762,33 @@ function App() {
         set_is_locked(false)
     }
 
+    const handle_select_level = (level_index: number) => {
+        if (feedback_timeout.current !== null) {
+            window.clearTimeout(feedback_timeout.current)
+            feedback_timeout.current = null
+        }
+
+        const selected_level = levels[level_index]
+        const saved_sentence_ids = get_level_completed_sentence_ids(selected_level, progress.completed_sentence_ids)
+        const should_replay_level = saved_sentence_ids.length === selected_level.sentences.length
+        const selected_sentence_ids = should_replay_level ? [] : saved_sentence_ids
+
+        set_active_level_index(level_index)
+        set_level_completed_sentence_ids(selected_sentence_ids)
+        set_sentence_order(
+            should_replay_level
+                ? get_sequential_sentence_order(selected_level)
+                : get_sentence_order(selected_level, selected_sentence_ids),
+        )
+        set_sentence_order_index(0)
+        set_current_chunk_index(0)
+        set_option_seed((current_seed) => current_seed + 1)
+        set_feedback_japanese('')
+        set_feedback_state(null)
+        set_is_locked(false)
+        set_is_sidebar_open(false)
+    }
+
     const handle_replay_level = () => {
         if (feedback_timeout.current !== null) {
             window.clearTimeout(feedback_timeout.current)
@@ -632,11 +820,21 @@ function App() {
 
     return (
         <div className="h-dvh overflow-hidden bg-app text-slate-100">
+            <CourseSidebar
+                active_level_index={active_level_index}
+                completed_sentence_ids={progress.completed_sentence_ids}
+                is_open={is_sidebar_open}
+                on_close={() => set_is_sidebar_open(false)}
+                on_select_level={handle_select_level}
+            />
+
             <main className="mx-auto flex h-full w-full max-w-6xl flex-col px-4 py-4 sm:px-8 sm:py-6">
                 <LevelStatus
                     completed_count={completed_count}
+                    is_sidebar_open={is_sidebar_open}
                     level={active_level}
                     level_index={active_level_index}
+                    on_toggle_sidebar={() => set_is_sidebar_open((current_state) => !current_state)}
                 />
 
                 {is_level_complete ? (
