@@ -8,7 +8,9 @@ import subprocess
 import sys
 import unicodedata
 
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
+
+# accelerate launch --multi_gpu --num_processes 2 audio/create_audio.py
 
 import flash_attn
 import json5
@@ -46,9 +48,6 @@ max_batch_cost = 384
 mfa_num_jobs = 4
 alignment_attempt_count = 3
 alignment_punctuation = " \t\n\r\"'`“”‘’「」『』（）()［］[]【】。、，．,.！？!?・:：;；…"
-
-# accelerate launch --multi_gpu --num_processes 2 audio/create_audio.py
-
 
 def load_levels():
     levels_source = levels_path.read_text(encoding="utf-8")
