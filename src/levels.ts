@@ -17,7 +17,7 @@ export interface QuizLevel {
     sentences: QuizSentence[]
 }
 
-export const levels: QuizLevel[] = [
+export const levels: QuizLevel[] = /* AUDIO_LEVELS_START */ [
     {
         id: "level-001",
         title: "これは〜です",
@@ -8568,4 +8568,4 @@ export const levels: QuizLevel[] = [
             },
         ],
     },
-]
+] /* AUDIO_LEVELS_END */

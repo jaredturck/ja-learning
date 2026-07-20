@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Lock, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Lock, RotateCcw, Volume2 } from 'lucide-react'
 import { levels } from './levels'
 import type { QuizLevel, QuizSentence, SentenceChunk } from './levels'
 
@@ -11,6 +11,15 @@ interface QuizOption {
     japanese: string
     explanation: string
     is_correct: boolean
+}
+
+interface AudioLevel {
+    file: string
+    clips: Record<string, [number, number]>
+}
+
+interface AudioIndex {
+    levels: Record<string, AudioLevel>
 }
 
 const progress_storage_key = 'nihongo-loop-progress'
@@ -209,6 +218,10 @@ function get_initial_level_index(completed_sentence_ids: string[]) {
 
 function get_level_number(level_index: number) {
     return String(level_index + 1).padStart(2, '0')
+}
+
+function get_japanese_sentence(sentence: QuizSentence) {
+    return sentence.chunks.map((chunk) => chunk.japanese).join('')
 }
 
 function get_sentence_text_size(sentence: QuizSentence) {
@@ -482,9 +495,11 @@ function CourseSidebar({ active_level_index, completed_sentence_ids, is_open, on
     )
 }
 
-function SentenceBuilder({ sentence, current_chunk_index }: {
+function SentenceBuilder({ sentence, current_chunk_index, is_audio_available, on_play_audio }: {
     sentence: QuizSentence
     current_chunk_index: number
+    is_audio_available: boolean
+    on_play_audio: () => void
 }) {
     const text_size = get_sentence_text_size(sentence)
 
@@ -493,32 +508,43 @@ function SentenceBuilder({ sentence, current_chunk_index }: {
             aria-label="作成中の日本語文"
             className="flex min-h-0 w-full flex-1 items-center justify-center text-slate-100"
         >
-            <div className="flex max-w-full flex-wrap items-end justify-center gap-x-4 gap-y-3 sm:gap-x-6">
-                {sentence.chunks.map((chunk, chunk_index) => {
-                    const is_complete = chunk_index < current_chunk_index
-                    const is_current = chunk_index === current_chunk_index
+            <div className="flex max-w-full items-center justify-center gap-3 sm:gap-4">
+                <div className="flex min-w-0 max-w-full flex-wrap items-end justify-center gap-x-4 gap-y-3 sm:gap-x-6">
+                    {sentence.chunks.map((chunk, chunk_index) => {
+                        const is_complete = chunk_index < current_chunk_index
+                        const is_current = chunk_index === current_chunk_index
 
-                    return (
-                        <div
-                            className={`flex min-w-[2.25rem] flex-col items-center transition-opacity duration-150 ${
-                                is_complete ? 'animate-chunk-in opacity-100' : is_current ? 'opacity-100' : 'opacity-25'
-                            }`}
-                            key={`${chunk.japanese}-${chunk_index}`}
-                        >
-                            <span
-                                className={`font-japanese font-medium leading-none tracking-tight ${
-                                    is_current ? 'text-violet-400' : ''
+                        return (
+                            <div
+                                className={`flex min-w-[2.25rem] flex-col items-center transition-opacity duration-150 ${
+                                    is_complete ? 'animate-chunk-in opacity-100' : is_current ? 'opacity-100' : 'opacity-25'
                                 }`}
-                                style={{ fontSize: text_size }}
+                                key={`${chunk.japanese}-${chunk_index}`}
                             >
-                                {is_complete ? chunk.japanese : '＿'}
-                            </span>
-                            <span className="mt-2 min-h-4 text-center text-xs text-slate-500 sm:text-sm">
-                                {is_complete ? chunk.explanation : ''}
-                            </span>
-                        </div>
-                    )
-                })}
+                                <span
+                                    className={`font-japanese font-medium leading-none tracking-tight ${
+                                        is_current ? 'text-violet-400' : ''
+                                    }`}
+                                    style={{ fontSize: text_size }}
+                                >
+                                    {is_complete ? chunk.japanese : '＿'}
+                                </span>
+                                <span className="mt-2 min-h-4 text-center text-xs text-slate-500 sm:text-sm">
+                                    {is_complete ? chunk.explanation : ''}
+                                </span>
+                            </div>
+                        )
+                    })}
+                </div>
+                <button
+                    aria-label="日本語の文を聞く"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-700 text-slate-400 transition hover:border-violet-500 hover:text-violet-300 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:border-slate-700 disabled:hover:text-slate-400"
+                    disabled={!is_audio_available}
+                    onClick={on_play_audio}
+                    type="button"
+                >
+                    <Volume2 size={18} />
+                </button>
             </div>
         </div>
     )
@@ -652,23 +678,90 @@ function App() {
     const [is_locked, set_is_locked] = useState(false)
     const [option_seed, set_option_seed] = useState(0)
     const [is_sidebar_open, set_is_sidebar_open] = useState(false)
+    const [audio_index, set_audio_index] = useState<AudioIndex | null>(null)
+    const [is_level_audio_ready, set_is_level_audio_ready] = useState(false)
     const feedback_timeout = useRef<number | null>(null)
+    const audio_context = useRef<AudioContext | null>(null)
+    const audio_buffer = useRef<AudioBuffer | null>(null)
+    const audio_source = useRef<AudioBufferSourceNode | null>(null)
+    const loaded_audio_level_id = useRef('')
 
     const active_level = levels[active_level_index]
     const sentence_index = sentence_order[sentence_order_index] ?? 0
     const active_sentence = active_level?.sentences[sentence_index]
+    const active_sentence_text = active_sentence ? get_japanese_sentence(active_sentence) : ''
     const completed_count = active_level ? get_completed_count(active_level, level_completed_sentence_ids) : 0
     const is_level_complete = Boolean(active_level && completed_count === active_level.sentences.length)
+    const can_play_sentence_audio = Boolean(
+        is_level_audio_ready
+        && audio_index?.levels[active_level.id]?.clips[active_sentence_text],
+    )
 
     useEffect(() => {
         localStorage.setItem(progress_storage_key, JSON.stringify(progress))
     }, [progress])
 
     useEffect(() => {
+        let is_cancelled = false
+
+        fetch(`${import.meta.env.BASE_URL}audio/index.json`)
+            .then((response) => response.json() as Promise<AudioIndex>)
+            .then((next_audio_index) => {
+                if (!is_cancelled) {
+                    set_audio_index(next_audio_index)
+                }
+            })
+            .catch(() => undefined)
+
+        return () => {
+            is_cancelled = true
+        }
+    }, [])
+
+    useEffect(() => {
+        let is_cancelled = false
+        const level_audio = audio_index?.levels[active_level.id]
+
+        audio_source.current?.stop()
+        audio_source.current = null
+        audio_buffer.current = null
+        loaded_audio_level_id.current = ''
+        set_is_level_audio_ready(false)
+
+        if (!level_audio) {
+            return () => {
+                is_cancelled = true
+            }
+        }
+
+        const context = audio_context.current ?? new AudioContext()
+        audio_context.current = context
+
+        fetch(`${import.meta.env.BASE_URL}audio/${level_audio.file}`)
+            .then((response) => response.arrayBuffer())
+            .then((audio_data) => context.decodeAudioData(audio_data))
+            .then((next_audio_buffer) => {
+                if (!is_cancelled) {
+                    audio_buffer.current = next_audio_buffer
+                    loaded_audio_level_id.current = active_level.id
+                    set_is_level_audio_ready(true)
+                }
+            })
+            .catch(() => undefined)
+
+        return () => {
+            is_cancelled = true
+        }
+    }, [active_level.id, audio_index])
+
+    useEffect(() => {
         return () => {
             if (feedback_timeout.current !== null) {
                 window.clearTimeout(feedback_timeout.current)
             }
+
+            audio_source.current?.stop()
+            audio_context.current?.close()
         }
     }, [])
 
@@ -681,11 +774,35 @@ function App() {
         set_options(get_sentence_options(active_sentence.chunks[current_chunk_index]))
     }, [active_sentence, current_chunk_index, option_seed])
 
+    const play_audio = (text: string) => {
+        const clip = audio_index?.levels[active_level.id]?.clips[text]
+        const context = audio_context.current
+        const buffer = audio_buffer.current
+
+        if (!clip || !context || !buffer || loaded_audio_level_id.current !== active_level.id) {
+            return
+        }
+
+        audio_source.current?.stop()
+
+        const source = context.createBufferSource()
+        source.buffer = buffer
+        source.connect(context.destination)
+        audio_source.current = source
+
+        context.resume().then(() => {
+            if (audio_source.current === source) {
+                source.start(0, clip[0], clip[1])
+            }
+        })
+    }
+
     const handle_select_option = (option: QuizOption) => {
         if (!active_sentence || is_locked) {
             return
         }
 
+        play_audio(option.japanese)
         set_is_locked(true)
         set_feedback_japanese(option.japanese)
 
@@ -938,6 +1055,8 @@ function App() {
                         <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-3 sm:py-5">
                             <SentenceBuilder
                                 current_chunk_index={current_chunk_index}
+                                is_audio_available={can_play_sentence_audio}
+                                on_play_audio={() => play_audio(active_sentence_text)}
                                 sentence={active_sentence}
                             />
                             <ChunkProgress
