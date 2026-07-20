@@ -9,7 +9,7 @@ interface ProgressState {
 
 interface QuizOption {
     japanese: string
-    explanation: string
+    english: string
     is_correct: boolean
 }
 
@@ -24,110 +24,110 @@ interface AudioIndex {
 
 const progress_storage_key = 'nihongo-loop-progress'
 
-const chunk_explanation_overrides: Record<string, string> = {
-    '「おはよう」': '朝のあいさつ',
-    '「お願いします」': '丁寧に依頼する定型表現',
-    '「ここに来てください」': 'ここへ来るよう丁寧に頼む表現',
-    '「さようなら」': '別れのあいさつ',
-    '「すみません」': '謝罪や呼びかけに使う定型表現',
-    '「コーヒーが好きです」': 'コーヒーが好きだと伝える表現',
-    '「今日は休みです」': '今日は休みだと伝える表現',
-    '「今日は寒いです」': '今日の寒さを伝える表現',
-    '「名前を書いてください」': '名前を書くよう丁寧に頼む表現',
-    '「待ってください」': '待つよう丁寧に頼む表現',
-    '「日本に行きます」': '日本へ行くことを伝える表現',
-    '「日本語を勉強します」': '日本語を勉強することを伝える表現',
-    '「映画が好きです」': '映画が好きだと伝える表現',
-    '「本を読みました」': '本を読んだことを伝える表現',
-    '「本を読みます」': '本を読むことを伝える表現',
-    '「東京に住んでいます」': '東京に住んでいることを伝える表現',
-    '「水を飲みます」': '水を飲むことを伝える表現',
-    '「水を飲んでください」': '水を飲むよう丁寧に頼む表現',
-    '「猫がいます」': '猫がいることを伝える表現',
-    '「駅に行きます」': '駅へ行くことを伝える表現',
-    '「魚を食べません」': '魚を食べないことを伝える表現',
-    あそこ: '話し手と聞き手から離れた場所を指す語',
-    ありませんでした: '物が存在しなかったことを表す丁寧な形',
-    い: 'い形容詞の語尾',
-    いつも: '頻度が常にそうであることを表す語',
-    いません: '人や動物が存在しないことを表す丁寧な形',
-    いませんでした: '人や動物が存在しなかったことを表す丁寧な形',
-    うどん: '麺料理を表す語',
-    ことができます: '可能であることを表す丁寧な形',
-    ご飯: '米飯や食事を表す語',
-    しましょう: '一緒に行う提案を表す丁寧な形',
-    そこ: '聞き手の近くの場所を指す語',
-    たら: '条件や時を表す形',
-    てはいけません: '禁止を表す丁寧な形',
-    ても: '逆接の条件を表す形',
-    てもいいです: '許可を表す丁寧な形',
-    と言いました: '引用した内容を伝える表現',
-    どの: 'どの名詞かを尋ねる語',
-    どんな: '種類や性質を尋ねる語',
-    ね: '同意や確認を求める終助詞',
-    はずです: '当然の予想を表す丁寧な形',
-    ほしいです: '物を欲しい気持ちを表す丁寧な形',
-    よ: '強調や新しい情報を伝える終助詞',
-    ジュース: '果汁飲料などを表す語',
-    '一冊、': '本などを一冊数える表現',
-    '三冊、': '本などを三冊数える表現',
-    '二本、': '細長い物を二本数える表現',
-    '二枚、': '薄く平たい物を二枚数える表現',
-    作らない: '作るの普通体否定',
-    勉強しない: '勉強するの普通体否定',
-    午後三時: '午後の三時を表す時刻',
-    古い: '物の古さを表すい形容詞',
-    暑い: '気温の高さを表すい形容詞',
-    書いた: '書くの普通体過去',
-    書かない: '書くの普通体否定',
-    書く: '文字や文章を記す動作',
-    来ます: '来るの丁寧な現在・未来形',
-    火曜日: '週の曜日の一つ',
-    聞いた: '聞くの普通体過去',
-    聞いて: '聞くのて形',
-    聞かない: '聞くの普通体否定',
-    聞く: '音を聞く、または質問する動作',
-    行きました: '行くの丁寧な過去形',
-    行きます: '行くの丁寧な現在・未来形',
-    買わない: '買うの普通体否定',
-    は: '主題を示す助詞',
-    が: '主語を示す助詞',
-    を: '目的語を示す助詞',
-    に: '時点・行き先・存在場所などを示す助詞',
-    で: '動作の場所や手段を示す助詞',
-    と: '並列・相手・引用などを示す助詞',
-    の: '所有や名詞同士のつながりを示す助詞',
-    も: '追加や同類を示す助詞',
-    へ: '方向を示す助詞',
-    から: '起点・理由・順序などを示す助詞',
-    まで: '終点や期限を示す助詞',
-    か: '疑問を表す終助詞',
+const chunk_english_overrides: Record<string, string> = {
+    '「おはよう」': '“Good morning”',
+    '「お願いします」': '“Please”',
+    '「ここに来てください」': '“Please come here”',
+    '「さようなら」': '“Goodbye”',
+    '「すみません」': '“Excuse me / sorry”',
+    '「コーヒーが好きです」': '“I like coffee”',
+    '「今日は休みです」': '“Today is a day off”',
+    '「今日は寒いです」': '“It is cold today”',
+    '「名前を書いてください」': '“Please write your name”',
+    '「待ってください」': '“Please wait”',
+    '「日本に行きます」': '“I will go to Japan”',
+    '「日本語を勉強します」': '“I study Japanese”',
+    '「映画が好きです」': '“I like movies”',
+    '「本を読みました」': '“I read a book”',
+    '「本を読みます」': '“I read a book”',
+    '「東京に住んでいます」': '“I live in Tokyo”',
+    '「水を飲みます」': '“I drink water”',
+    '「水を飲んでください」': '“Please drink water”',
+    '「猫がいます」': '“There is a cat”',
+    '「駅に行きます」': '“I go to the station”',
+    '「魚を食べません」': '“I do not eat fish”',
+    あそこ: 'over there',
+    ありませんでした: 'did not exist [thing]',
+    い: '[い-adjective ending]',
+    いつも: 'always',
+    いません: 'does not exist [living]',
+    いませんでした: 'did not exist [living]',
+    うどん: 'udon',
+    ことができます: 'can / be able to',
+    ご飯: 'rice / a meal',
+    しましょう: 'let’s do',
+    そこ: 'there',
+    たら: 'if / when',
+    てはいけません: 'must not',
+    ても: 'even if',
+    てもいいです: 'may / allowed to',
+    と言いました: 'said',
+    どの: 'which [before a noun]',
+    どんな: 'what kind of',
+    ね: '[seeking agreement]',
+    はずです: 'should / expected to',
+    ほしいです: 'want [a thing]',
+    よ: '[emphasis / informing]',
+    ジュース: 'juice',
+    '一冊、': 'one volume,',
+    '三冊、': 'three volumes,',
+    '二本、': 'two long objects,',
+    '二枚、': 'two flat objects,',
+    作らない: 'do not make',
+    勉強しない: 'do not study',
+    午後三時: '3 p.m.',
+    古い: 'old',
+    暑い: 'hot [weather]',
+    書いた: 'wrote',
+    書かない: 'do not write',
+    書く: 'write',
+    来ます: 'come [polite]',
+    火曜日: 'Tuesday',
+    聞いた: 'heard / listened',
+    聞いて: 'listen and / listening',
+    聞かない: 'do not listen / ask',
+    聞く: 'listen / ask',
+    行きました: 'went',
+    行きます: 'go [polite]',
+    買わない: 'do not buy',
+    は: '[topic]',
+    が: '[subject]',
+    を: '[object]',
+    に: '[time / destination / location]',
+    で: '[action place / means]',
+    と: 'and / [with / quote]',
+    の: '[linking / possessive]',
+    も: 'also',
+    へ: '[direction]',
+    から: 'from / because / after',
+    まで: 'to / until',
+    か: '[question]',
 }
 
-function get_chunk_explanation_lookup() {
-    const explanation_counts = new Map<string, Map<string, number>>()
+function get_chunk_english_lookup() {
+    const english_counts = new Map<string, Map<string, number>>()
 
     levels.forEach((level) => {
         level.sentences.forEach((sentence) => {
             sentence.chunks.forEach((chunk) => {
-                const chunk_counts = explanation_counts.get(chunk.japanese) ?? new Map<string, number>()
-                chunk_counts.set(chunk.explanation, (chunk_counts.get(chunk.explanation) ?? 0) + 1)
-                explanation_counts.set(chunk.japanese, chunk_counts)
+                const chunk_counts = english_counts.get(chunk.japanese) ?? new Map<string, number>()
+                chunk_counts.set(chunk.english, (chunk_counts.get(chunk.english) ?? 0) + 1)
+                english_counts.set(chunk.japanese, chunk_counts)
             })
         })
     })
 
     return new Map(
-        [...explanation_counts.entries()].map(([japanese, chunk_counts]) => {
-            const explanation = chunk_explanation_overrides[japanese]
+        [...english_counts.entries()].map(([japanese, chunk_counts]) => {
+            const english = chunk_english_overrides[japanese]
                 ?? [...chunk_counts.entries()].sort((first, second) => second[1] - first[1])[0]?.[0]
                 ?? ''
-            return [japanese, explanation]
+            return [japanese, english]
         }),
     )
 }
 
-const chunk_explanation_lookup = get_chunk_explanation_lookup()
+const chunk_english_lookup = get_chunk_english_lookup()
 
 function shuffle_items<T>(items: T[]) {
     const shuffled_items = [...items]
@@ -158,10 +158,10 @@ function get_sentence_options(chunk: SentenceChunk) {
     )
     const selected_distractors = shuffle_items(unique_distractors).slice(0, 3)
     const options: QuizOption[] = [
-        { japanese: chunk.japanese, explanation: chunk.explanation, is_correct: true },
+        { japanese: chunk.japanese, english: chunk.english, is_correct: true },
         ...selected_distractors.map((japanese) => ({
             japanese,
-            explanation: chunk_explanation_lookup.get(japanese) ?? '',
+            english: chunk_english_lookup.get(japanese) ?? '',
             is_correct: false,
         })),
     ]
@@ -530,7 +530,7 @@ function SentenceBuilder({ sentence, current_chunk_index, is_audio_available, on
                                     {is_complete ? chunk.japanese : '＿'}
                                 </span>
                                 <span className="mt-2 min-h-4 text-center text-xs text-slate-500 sm:text-sm">
-                                    {is_complete ? chunk.explanation : ''}
+                                    {is_complete ? chunk.english : ''}
                                 </span>
                             </div>
                         )
@@ -583,7 +583,7 @@ function OptionGrid({ options, feedback_japanese, feedback_state, is_locked, on_
                 const is_revealed_correct = option.is_correct && feedback_state === 'wrong'
                 const is_correct_feedback = (is_selected && feedback_state !== 'wrong') || is_revealed_correct
                 const is_wrong_feedback = is_selected && feedback_state === 'wrong'
-                const show_explanation = feedback_state === 'wrong' && (is_wrong_feedback || is_revealed_correct)
+                const show_english = feedback_state === 'wrong' && (is_wrong_feedback || is_revealed_correct)
 
                 return (
                     <button
@@ -609,10 +609,10 @@ function OptionGrid({ options, feedback_japanese, feedback_state, is_locked, on_
                             </span>
                             <span
                                 className={`mt-2 min-h-5 text-center text-sm font-medium transition-opacity duration-150 sm:text-base ${
-                                    show_explanation ? 'opacity-100' : 'opacity-0'
+                                    show_english ? 'opacity-100' : 'opacity-0'
                                 }`}
                             >
-                                {show_explanation ? option.explanation : ''}
+                                {show_english ? option.english : ''}
                             </span>
                         </span>
                     </button>
