@@ -25,7 +25,7 @@ speaker_name = "Ono_Anna"
 voice_instruction = "日本語学習教材の音声です。入力された日本語だけを、自然で明瞭に、落ち着いた速度で発音してください。"
 silence_seconds = 0.2
 opus_bitrate = "96k"
-batch_size = 16
+batch_size = 64
 
 def load_levels():
     levels_source = levels_path.read_text(encoding="utf-8")
