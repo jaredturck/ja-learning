@@ -41,7 +41,7 @@ voice_instruction = "入力文そのまま"
 mfa_model_name = "japanese_mfa"
 tts_sample_rate = 24000
 silence_seconds = 0.2
-opus_bitrate = "96k"
+opus_bitrate = "24k"
 max_batch_size = 24
 max_batch_cost = 384
 mfa_num_jobs = 4
@@ -49,7 +49,6 @@ alignment_attempt_count = 3
 alignment_punctuation = " \t\n\r\"'`“”‘’「」『』（）()［］[]【】。、，．,.！？!?・:：;；…"
 
 # accelerate launch --multi_gpu --num_processes 2 audio/create_audio.py
-
 
 def load_levels():
     levels_source = levels_path.read_text(encoding="utf-8")
