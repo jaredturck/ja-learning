@@ -390,10 +390,11 @@ function OptionGrid({ options, feedback_japanese, feedback_state, is_locked, on_
     )
 }
 
-function LevelComplete({ level_index, has_next_level, on_continue }: {
+function LevelComplete({ level_index, has_next_level, on_continue, on_replay }: {
     level_index: number
     has_next_level: boolean
     on_continue: () => void
+    on_replay: () => void
 }) {
     return (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center text-center">
@@ -406,15 +407,24 @@ function LevelComplete({ level_index, has_next_level, on_continue }: {
             <p className="mt-3 text-3xl font-semibold text-slate-100 sm:text-5xl">
                 {has_next_level ? '次のレベルへ進めます。' : 'すべてのレベルを完了しました。'}
             </p>
-            {has_next_level ? (
+            <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row">
                 <button
-                    className="mt-8 rounded-2xl bg-violet-500 px-8 py-4 text-base font-semibold text-white transition hover:bg-violet-400 active:scale-[0.98]"
-                    onClick={on_continue}
+                    className="rounded-2xl border border-slate-700 px-8 py-4 text-base font-semibold text-slate-200 transition hover:border-violet-500 hover:text-white active:scale-[0.98]"
+                    onClick={on_replay}
                     type="button"
                 >
-                    次へ
+                    もう一度
                 </button>
-            ) : null}
+                {has_next_level ? (
+                    <button
+                        className="rounded-2xl bg-violet-500 px-8 py-4 text-base font-semibold text-white transition hover:bg-violet-400 active:scale-[0.98]"
+                        onClick={on_continue}
+                        type="button"
+                    >
+                        次へ
+                    </button>
+                ) : null}
+            </div>
         </div>
     )
 }
@@ -591,6 +601,31 @@ function App() {
         set_is_locked(false)
     }
 
+    const handle_replay_level = () => {
+        if (feedback_timeout.current !== null) {
+            window.clearTimeout(feedback_timeout.current)
+            feedback_timeout.current = null
+        }
+
+        const active_sentence_ids = new Set(active_level.sentences.map((sentence) => sentence.id))
+        const next_progress = {
+            completed_sentence_ids: progress.completed_sentence_ids.filter(
+                (sentence_id) => !active_sentence_ids.has(sentence_id),
+            ),
+        }
+
+        localStorage.setItem(progress_storage_key, JSON.stringify(next_progress))
+        set_progress(next_progress)
+        set_level_completed_sentence_ids([])
+        set_sentence_order(get_sentence_order(active_level, []))
+        set_sentence_order_index(0)
+        set_current_chunk_index(0)
+        set_option_seed((current_seed) => current_seed + 1)
+        set_feedback_japanese('')
+        set_feedback_state(null)
+        set_is_locked(false)
+    }
+
     if (levels.length === 0) {
         return <EmptyCurriculum />
     }
@@ -609,6 +644,7 @@ function App() {
                         has_next_level={active_level_index < levels.length - 1}
                         level_index={active_level_index}
                         on_continue={handle_next_level}
+                        on_replay={handle_replay_level}
                     />
                 ) : active_sentence ? (
                     <>
