@@ -224,6 +224,63 @@ function get_japanese_sentence(sentence: QuizSentence) {
     return sentence.chunks.map((chunk) => chunk.japanese).join('')
 }
 
+function get_english_sentence_parts(sentence: QuizSentence, current_chunk_index: number) {
+    const completed_characters = Array.from({ length: sentence.english.length }, () => false)
+
+    if (current_chunk_index >= sentence.chunks.length) {
+        completed_characters.fill(true)
+    } else {
+        const english_sentence = sentence.english.toLowerCase()
+
+        sentence.chunks.slice(0, current_chunk_index).forEach((chunk) => {
+            const chunk_english = chunk.english.trim()
+
+            if (!chunk_english || (chunk_english.startsWith('[') && chunk_english.endsWith(']'))) {
+                return
+            }
+
+            const chunk_english_lower = chunk_english.toLowerCase()
+            let match_index = english_sentence.indexOf(chunk_english_lower)
+
+            while (match_index !== -1) {
+                const previous_character = sentence.english[match_index - 1] ?? ''
+                const next_character = sentence.english[match_index + chunk_english.length] ?? ''
+                const starts_with_word = /[a-z0-9]/i.test(chunk_english[0])
+                const ends_with_word = /[a-z0-9]/i.test(chunk_english[chunk_english.length - 1])
+                const has_valid_boundaries = (
+                    (!starts_with_word || !/[a-z0-9]/i.test(previous_character))
+                    && (!ends_with_word || !/[a-z0-9]/i.test(next_character))
+                )
+                const is_unmatched = completed_characters
+                    .slice(match_index, match_index + chunk_english.length)
+                    .every((is_complete) => !is_complete)
+
+                if (has_valid_boundaries && is_unmatched) {
+                    completed_characters.fill(true, match_index, match_index + chunk_english.length)
+                    break
+                }
+
+                match_index = english_sentence.indexOf(chunk_english_lower, match_index + 1)
+            }
+        })
+    }
+
+    const parts: { text: string; is_complete: boolean }[] = []
+    let part_start = 0
+
+    for (let index = 1; index <= sentence.english.length; index += 1) {
+        if (index === sentence.english.length || completed_characters[index] !== completed_characters[part_start]) {
+            parts.push({
+                text: sentence.english.slice(part_start, index),
+                is_complete: completed_characters[part_start],
+            })
+            part_start = index
+        }
+    }
+
+    return parts
+}
+
 function get_sentence_text_size(sentence: QuizSentence) {
     if (sentence.chunks.length >= 11) {
         return 'clamp(1.45rem, 3.2vw, 2.7rem)'
@@ -690,6 +747,9 @@ function App() {
     const sentence_index = sentence_order[sentence_order_index] ?? 0
     const active_sentence = active_level?.sentences[sentence_index]
     const active_sentence_text = active_sentence ? get_japanese_sentence(active_sentence) : ''
+    const english_sentence_parts = active_sentence
+        ? get_english_sentence_parts(active_sentence, current_chunk_index)
+        : []
     const completed_count = active_level ? get_completed_count(active_level, level_completed_sentence_ids) : 0
     const is_level_complete = Boolean(active_level && completed_count === active_level.sentences.length)
     const can_play_sentence_audio = Boolean(
@@ -1040,7 +1100,16 @@ function App() {
                                 <ArrowLeft size={19} />
                             </button>
                             <h1 className="px-14 text-[clamp(1.65rem,3.5vw,3rem)] font-semibold leading-tight tracking-[-0.035em] text-white">
-                                {active_sentence.english}
+                                {english_sentence_parts.map((part, part_index) => (
+                                    <span
+                                        className={`transition-colors duration-150 ${
+                                            part.is_complete ? 'text-sky-300' : ''
+                                        }`}
+                                        key={`${part.text}-${part_index}`}
+                                    >
+                                        {part.text}
+                                    </span>
+                                ))}
                             </h1>
                             <button
                                 aria-label="文を最初からやり直す"
