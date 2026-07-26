@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Lock, RotateCcw, Volume2 } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Lock, RotateCcw, Volume2, X } from 'lucide-react'
 import { levels } from './levels'
 import type { QuizLevel, QuizSentence, SentenceChunk } from './levels'
 
@@ -23,6 +23,7 @@ interface AudioIndex {
 }
 
 const progress_storage_key = 'nihongo-loop-progress'
+const intro_pause_ms = 1000
 
 const chunk_english_overrides: Record<string, string> = {
     '「おはよう」': '“Good morning”',
@@ -265,20 +266,24 @@ function get_english_sentence_parts(sentence: QuizSentence, current_chunk_index:
         })
     }
 
-    const parts: { text: string; is_complete: boolean }[] = []
-    let part_start = 0
+    let completed_end = completed_characters.lastIndexOf(true) + 1
 
-    for (let index = 1; index <= sentence.english.length; index += 1) {
-        if (index === sentence.english.length || completed_characters[index] !== completed_characters[part_start]) {
-            parts.push({
-                text: sentence.english.slice(part_start, index),
-                is_complete: completed_characters[part_start],
-            })
-            part_start = index
-        }
+    if (completed_end > 0 && !/[a-z0-9]/i.test(sentence.english.slice(completed_end))) {
+        completed_end = sentence.english.length
     }
 
-    return parts
+    if (completed_end === 0) {
+        return [{ text: sentence.english, is_complete: false }]
+    }
+
+    if (completed_end === sentence.english.length) {
+        return [{ text: sentence.english, is_complete: true }]
+    }
+
+    return [
+        { text: sentence.english.slice(0, completed_end), is_complete: true },
+        { text: sentence.english.slice(completed_end), is_complete: false },
+    ]
 }
 
 function get_sentence_text_size(sentence: QuizSentence) {
@@ -556,7 +561,7 @@ function SentenceBuilder({ sentence, current_chunk_index, is_audio_available, on
     sentence: QuizSentence
     current_chunk_index: number
     is_audio_available: boolean
-    on_play_audio: () => void
+    on_play_audio: (text: string) => void
 }) {
     const text_size = get_sentence_text_size(sentence)
 
@@ -572,11 +577,15 @@ function SentenceBuilder({ sentence, current_chunk_index, is_audio_available, on
                         const is_current = chunk_index === current_chunk_index
 
                         return (
-                            <div
-                                className={`flex min-w-[2.25rem] flex-col items-center transition-opacity duration-150 ${
+                            <button
+                                aria-label={is_complete ? `${chunk.japanese}を聞く` : undefined}
+                                className={`flex min-w-[2.25rem] flex-col items-center transition-opacity duration-150 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-400 ${
                                     is_complete ? 'animate-chunk-in opacity-100' : is_current ? 'opacity-100' : 'opacity-25'
                                 }`}
+                                disabled={!is_complete || !is_audio_available}
                                 key={`${chunk.japanese}-${chunk_index}`}
+                                onClick={() => on_play_audio(chunk.japanese)}
+                                type="button"
                             >
                                 <span
                                     className={`font-japanese font-medium leading-none tracking-tight ${
@@ -589,7 +598,7 @@ function SentenceBuilder({ sentence, current_chunk_index, is_audio_available, on
                                 <span className="mt-2 min-h-4 text-center text-xs text-slate-500 sm:text-sm">
                                     {is_complete ? chunk.english : ''}
                                 </span>
-                            </div>
+                            </button>
                         )
                     })}
                 </div>
@@ -597,7 +606,7 @@ function SentenceBuilder({ sentence, current_chunk_index, is_audio_available, on
                     aria-label="日本語の文を聞く"
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-700 text-slate-400 transition hover:border-violet-500 hover:text-violet-300 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:border-slate-700 disabled:hover:text-slate-400"
                     disabled={!is_audio_available}
-                    onClick={on_play_audio}
+                    onClick={() => on_play_audio(get_japanese_sentence(sentence))}
                     type="button"
                 >
                     <Volume2 size={18} />
@@ -718,6 +727,100 @@ function LevelComplete({ level_index, has_next_level, on_continue, on_replay }: 
     )
 }
 
+function WelcomeScreen({ on_start }: { on_start: () => void }) {
+    return (
+        <main className="flex h-dvh items-center justify-center bg-app px-6 text-center text-slate-100">
+            <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-slate-950/80 p-8 shadow-2xl shadow-black/30 sm:p-12">
+                <p className="text-sm font-semibold tracking-[0.18em] text-violet-400">日本語学習</p>
+                <h1 className="mt-4 text-4xl font-semibold tracking-[-0.035em] text-white sm:text-5xl">
+                    Begin learning Japanese
+                </h1>
+                <button
+                    className="mt-8 w-full rounded-2xl bg-violet-500 px-8 py-4 text-base font-semibold text-white transition hover:bg-violet-400 active:scale-[0.98]"
+                    onClick={on_start}
+                    type="button"
+                >
+                    Start
+                </button>
+            </div>
+        </main>
+    )
+}
+
+function LevelIntro({ level, sentence_order, active_sentence_index, active_language, on_stop, on_continue }: {
+    level: QuizLevel
+    sentence_order: number[]
+    active_sentence_index: number | null
+    active_language: 'japanese' | 'english' | null
+    on_stop: () => void
+    on_continue: () => void
+}) {
+    const sentence_refs = useRef<Array<HTMLDivElement | null>>([])
+
+    useEffect(() => {
+        if (active_sentence_index !== null) {
+            sentence_refs.current[active_sentence_index]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+    }, [active_language, active_sentence_index])
+
+    return (
+        <section className="flex min-h-0 flex-1 flex-col pt-4 sm:pt-5">
+            <div className="relative shrink-0 border-b border-slate-800 pb-4 text-center sm:pb-5">
+                <p className="text-xs font-semibold tracking-[0.18em] text-violet-400">レベル予習</p>
+                <h1 className="mt-1 text-2xl font-semibold text-white sm:text-3xl">例文を聞く</h1>
+                <button
+                    aria-label="音声を停止する"
+                    className="absolute right-0 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-900 hover:text-slate-200"
+                    onClick={on_stop}
+                    type="button"
+                >
+                    <X size={18} />
+                </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto py-6 sm:py-8">
+                <div className="mx-auto w-full max-w-2xl space-y-8 px-2 sm:space-y-10">
+                    {sentence_order.map((sentence_index, order_index) => {
+                        const sentence = level.sentences[sentence_index]
+                        const is_japanese_active = active_sentence_index === order_index && active_language === 'japanese'
+                        const is_english_active = active_sentence_index === order_index && active_language === 'english'
+
+                        return (
+                            <div
+                                key={sentence.id}
+                                ref={(element) => {
+                                    sentence_refs.current[order_index] = element
+                                }}
+                            >
+                                <p className={`font-japanese text-2xl font-medium leading-relaxed transition-colors duration-150 sm:text-3xl ${
+                                    is_japanese_active ? 'text-violet-200' : 'text-slate-100'
+                                }`}>
+                                    {get_japanese_sentence(sentence)}
+                                </p>
+                                <p className={`mt-1 text-lg leading-relaxed transition-colors duration-150 sm:text-xl ${
+                                    is_english_active ? 'text-violet-200' : 'text-slate-400'
+                                }`}>
+                                    {sentence.english}
+                                </p>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+
+            <div className="shrink-0 border-t border-slate-800 pt-4 sm:pt-5">
+                <button
+                    className="w-full rounded-2xl bg-violet-500 px-8 py-4 text-base font-semibold text-white transition hover:bg-violet-400 active:scale-[0.98]"
+                    onClick={on_continue}
+                    type="button"
+                >
+                    次へ
+                </button>
+            </div>
+        </section>
+    )
+}
+
 function App() {
     const [progress, set_progress] = useState<ProgressState>(get_saved_progress)
     const [active_level_index, set_active_level_index] = useState(() => get_initial_level_index(progress.completed_sentence_ids))
@@ -735,13 +838,25 @@ function App() {
     const [is_locked, set_is_locked] = useState(false)
     const [option_seed, set_option_seed] = useState(0)
     const [is_sidebar_open, set_is_sidebar_open] = useState(false)
-    const [audio_index, set_audio_index] = useState<AudioIndex | null>(null)
-    const [is_level_audio_ready, set_is_level_audio_ready] = useState(false)
+    const [has_started, set_has_started] = useState(false)
+    const [is_level_intro, set_is_level_intro] = useState(false)
+    const [intro_sentence_order, set_intro_sentence_order] = useState<number[]>([])
+    const [intro_active_index, set_intro_active_index] = useState<number | null>(null)
+    const [intro_language, set_intro_language] = useState<'japanese' | 'english' | null>(null)
+    const [intro_playback_requested, set_intro_playback_requested] = useState(false)
+    const [japanese_audio_index, set_japanese_audio_index] = useState<AudioIndex | null>(null)
+    const [english_audio_index, set_english_audio_index] = useState<AudioIndex | null>(null)
+    const [is_japanese_level_audio_ready, set_is_japanese_level_audio_ready] = useState(false)
+    const [is_english_level_audio_ready, set_is_english_level_audio_ready] = useState(false)
     const feedback_timeout = useRef<number | null>(null)
+    const intro_pause_timeout = useRef<number | null>(null)
+    const intro_sequence_token = useRef(0)
     const audio_context = useRef<AudioContext | null>(null)
-    const audio_buffer = useRef<AudioBuffer | null>(null)
+    const japanese_audio_buffer = useRef<AudioBuffer | null>(null)
+    const english_audio_buffer = useRef<AudioBuffer | null>(null)
     const audio_source = useRef<AudioBufferSourceNode | null>(null)
-    const loaded_audio_level_id = useRef('')
+    const loaded_japanese_audio_level_id = useRef('')
+    const loaded_english_audio_level_id = useRef('')
 
     const active_level = levels[active_level_index]
     const sentence_index = sentence_order[sentence_order_index] ?? 0
@@ -753,9 +868,183 @@ function App() {
     const completed_count = active_level ? get_completed_count(active_level, level_completed_sentence_ids) : 0
     const is_level_complete = Boolean(active_level && completed_count === active_level.sentences.length)
     const can_play_sentence_audio = Boolean(
-        is_level_audio_ready
-        && audio_index?.levels[active_level.id]?.clips[active_sentence_text],
+        is_japanese_level_audio_ready
+        && japanese_audio_index?.levels[active_level.id]?.clips[active_sentence_text],
     )
+    const can_play_english_sentence_audio = Boolean(
+        active_sentence
+        && is_english_level_audio_ready
+        && english_audio_index?.levels[active_level.id]?.clips[active_sentence.id],
+    )
+
+    const stop_audio = () => {
+        const source = audio_source.current
+
+        if (!source) {
+            return
+        }
+
+        source.onended = null
+        source.stop()
+        audio_source.current = null
+    }
+
+    const clear_intro_pause = () => {
+        if (intro_pause_timeout.current === null) {
+            return
+        }
+
+        window.clearTimeout(intro_pause_timeout.current)
+        intro_pause_timeout.current = null
+    }
+
+    const cancel_intro_sequence = () => {
+        intro_sequence_token.current += 1
+        clear_intro_pause()
+        stop_audio()
+        set_intro_active_index(null)
+        set_intro_language(null)
+        set_intro_playback_requested(false)
+    }
+
+    const open_level_intro = (level: QuizLevel) => {
+        cancel_intro_sequence()
+        set_intro_sentence_order(shuffle_items(level.sentences.map((_, index) => index)))
+        set_is_level_intro(true)
+        set_intro_playback_requested(true)
+    }
+
+    const play_audio_clip = (
+        index: AudioIndex | null,
+        buffer: AudioBuffer | null,
+        loaded_level_id: string,
+        level_id: string,
+        clip_key: string,
+        on_ended?: () => void,
+    ) => {
+        const clip = index?.levels[level_id]?.clips[clip_key]
+        const context = audio_context.current
+
+        if (!clip || !context || !buffer || loaded_level_id !== level_id) {
+            return false
+        }
+
+        stop_audio()
+
+        const source = context.createBufferSource()
+        source.buffer = buffer
+        source.connect(context.destination)
+        source.onended = () => {
+            if (audio_source.current !== source) {
+                return
+            }
+
+            audio_source.current = null
+            on_ended?.()
+        }
+        audio_source.current = source
+
+        context.resume().then(() => {
+            if (audio_source.current === source) {
+                source.start(0, clip[0], clip[1])
+            }
+        })
+
+        return true
+    }
+
+    const play_japanese_audio = (text: string, on_ended?: () => void, level_id = active_level.id) => {
+        return play_audio_clip(
+            japanese_audio_index,
+            japanese_audio_buffer.current,
+            loaded_japanese_audio_level_id.current,
+            level_id,
+            text,
+            on_ended,
+        )
+    }
+
+    const play_english_audio = (sentence_id: string, on_ended?: () => void, level_id = active_level.id) => {
+        return play_audio_clip(
+            english_audio_index,
+            english_audio_buffer.current,
+            loaded_english_audio_level_id.current,
+            level_id,
+            sentence_id,
+            on_ended,
+        )
+    }
+
+    const play_intro_pair = (
+        level: QuizLevel,
+        shuffled_sentence_order: number[],
+        order_index: number,
+        sequence_token: number,
+    ) => {
+        if (intro_sequence_token.current !== sequence_token) {
+            return
+        }
+
+        const intro_sentence = level.sentences[shuffled_sentence_order[order_index]]
+
+        if (!intro_sentence) {
+            set_intro_active_index(null)
+            set_intro_language(null)
+            return
+        }
+
+        set_intro_active_index(order_index)
+        set_intro_language('japanese')
+
+        const japanese_started = play_japanese_audio(
+            get_japanese_sentence(intro_sentence),
+            () => {
+                if (intro_sequence_token.current !== sequence_token) {
+                    return
+                }
+
+                set_intro_language('english')
+
+                const english_started = play_english_audio(
+                    intro_sentence.id,
+                    () => {
+                        if (intro_sequence_token.current !== sequence_token) {
+                            return
+                        }
+
+                        set_intro_active_index(null)
+                        set_intro_language(null)
+
+                        if (order_index >= shuffled_sentence_order.length - 1) {
+                            return
+                        }
+
+                        intro_pause_timeout.current = window.setTimeout(() => {
+                            intro_pause_timeout.current = null
+                            play_intro_pair(
+                                level,
+                                shuffled_sentence_order,
+                                order_index + 1,
+                                sequence_token,
+                            )
+                        }, intro_pause_ms)
+                    },
+                    level.id,
+                )
+
+                if (!english_started) {
+                    set_intro_active_index(null)
+                    set_intro_language(null)
+                }
+            },
+            level.id,
+        )
+
+        if (!japanese_started) {
+            set_intro_active_index(null)
+            set_intro_language(null)
+        }
+    }
 
     useEffect(() => {
         localStorage.setItem(progress_storage_key, JSON.stringify(progress))
@@ -768,7 +1057,16 @@ function App() {
             .then((response) => response.json() as Promise<AudioIndex>)
             .then((next_audio_index) => {
                 if (!is_cancelled) {
-                    set_audio_index(next_audio_index)
+                    set_japanese_audio_index(next_audio_index)
+                }
+            })
+            .catch(() => undefined)
+
+        fetch(`${import.meta.env.BASE_URL}audio_en/index.json`)
+            .then((response) => response.json() as Promise<AudioIndex>)
+            .then((next_audio_index) => {
+                if (!is_cancelled) {
+                    set_english_audio_index(next_audio_index)
                 }
             })
             .catch(() => undefined)
@@ -779,32 +1077,36 @@ function App() {
     }, [])
 
     useEffect(() => {
+        intro_sequence_token.current += 1
+        clear_intro_pause()
+        stop_audio()
+        japanese_audio_buffer.current = null
+        english_audio_buffer.current = null
+        loaded_japanese_audio_level_id.current = ''
+        loaded_english_audio_level_id.current = ''
+        set_is_japanese_level_audio_ready(false)
+        set_is_english_level_audio_ready(false)
+    }, [active_level.id, has_started])
+
+    useEffect(() => {
         let is_cancelled = false
-        const level_audio = audio_index?.levels[active_level.id]
+        const level_audio = japanese_audio_index?.levels[active_level.id]
+        const context = audio_context.current
 
-        audio_source.current?.stop()
-        audio_source.current = null
-        audio_buffer.current = null
-        loaded_audio_level_id.current = ''
-        set_is_level_audio_ready(false)
-
-        if (!level_audio) {
+        if (!has_started || !level_audio || !context) {
             return () => {
                 is_cancelled = true
             }
         }
-
-        const context = audio_context.current ?? new AudioContext()
-        audio_context.current = context
 
         fetch(`${import.meta.env.BASE_URL}audio/${level_audio.file}`)
             .then((response) => response.arrayBuffer())
             .then((audio_data) => context.decodeAudioData(audio_data))
             .then((next_audio_buffer) => {
                 if (!is_cancelled) {
-                    audio_buffer.current = next_audio_buffer
-                    loaded_audio_level_id.current = active_level.id
-                    set_is_level_audio_ready(true)
+                    japanese_audio_buffer.current = next_audio_buffer
+                    loaded_japanese_audio_level_id.current = active_level.id
+                    set_is_japanese_level_audio_ready(true)
                 }
             })
             .catch(() => undefined)
@@ -812,7 +1114,61 @@ function App() {
         return () => {
             is_cancelled = true
         }
-    }, [active_level.id, audio_index])
+    }, [active_level.id, has_started, japanese_audio_index])
+
+    useEffect(() => {
+        let is_cancelled = false
+        const level_audio = english_audio_index?.levels[active_level.id]
+        const context = audio_context.current
+
+        if (!has_started || !level_audio || !context) {
+            return () => {
+                is_cancelled = true
+            }
+        }
+
+        fetch(`${import.meta.env.BASE_URL}audio_en/${level_audio.file}`)
+            .then((response) => response.arrayBuffer())
+            .then((audio_data) => context.decodeAudioData(audio_data))
+            .then((next_audio_buffer) => {
+                if (!is_cancelled) {
+                    english_audio_buffer.current = next_audio_buffer
+                    loaded_english_audio_level_id.current = active_level.id
+                    set_is_english_level_audio_ready(true)
+                }
+            })
+            .catch(() => undefined)
+
+        return () => {
+            is_cancelled = true
+        }
+    }, [active_level.id, english_audio_index, has_started])
+
+    useEffect(() => {
+        if (
+            !is_level_intro
+            || !intro_playback_requested
+            || !is_japanese_level_audio_ready
+            || !is_english_level_audio_ready
+            || loaded_japanese_audio_level_id.current !== active_level.id
+            || loaded_english_audio_level_id.current !== active_level.id
+            || intro_sentence_order.length === 0
+        ) {
+            return
+        }
+
+        const sequence_token = intro_sequence_token.current + 1
+        intro_sequence_token.current = sequence_token
+        set_intro_playback_requested(false)
+        play_intro_pair(active_level, [...intro_sentence_order], 0, sequence_token)
+    }, [
+        active_level,
+        intro_playback_requested,
+        intro_sentence_order,
+        is_english_level_audio_ready,
+        is_japanese_level_audio_ready,
+        is_level_intro,
+    ])
 
     useEffect(() => {
         return () => {
@@ -820,7 +1176,9 @@ function App() {
                 window.clearTimeout(feedback_timeout.current)
             }
 
-            audio_source.current?.stop()
+            intro_sequence_token.current += 1
+            clear_intro_pause()
+            stop_audio()
             audio_context.current?.close()
         }
     }, [])
@@ -834,27 +1192,23 @@ function App() {
         set_options(get_sentence_options(active_sentence.chunks[current_chunk_index]))
     }, [active_sentence, current_chunk_index, option_seed])
 
-    const play_audio = (text: string) => {
-        const clip = audio_index?.levels[active_level.id]?.clips[text]
-        const context = audio_context.current
-        const buffer = audio_buffer.current
-
-        if (!clip || !context || !buffer || loaded_audio_level_id.current !== active_level.id) {
-            return
+    useEffect(() => {
+        const handle_key_down = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && is_sidebar_open) {
+                set_is_sidebar_open(false)
+            }
         }
 
-        audio_source.current?.stop()
+        window.addEventListener('keydown', handle_key_down)
+        return () => window.removeEventListener('keydown', handle_key_down)
+    }, [is_sidebar_open])
 
-        const source = context.createBufferSource()
-        source.buffer = buffer
-        source.connect(context.destination)
-        audio_source.current = source
-
-        context.resume().then(() => {
-            if (audio_source.current === source) {
-                source.start(0, clip[0], clip[1])
-            }
-        })
+    const handle_start = () => {
+        const context = audio_context.current ?? new AudioContext()
+        audio_context.current = context
+        context.resume()
+        set_has_started(true)
+        open_level_intro(active_level)
     }
 
     const handle_select_option = (option: QuizOption) => {
@@ -862,7 +1216,7 @@ function App() {
             return
         }
 
-        play_audio(option.japanese)
+        play_japanese_audio(option.japanese)
         set_is_locked(true)
         set_feedback_japanese(option.japanese)
 
@@ -911,17 +1265,6 @@ function App() {
         }, 180)
     }
 
-    useEffect(() => {
-        const handle_key_down = (event: KeyboardEvent) => {
-            if (event.key === 'Escape' && is_sidebar_open) {
-                set_is_sidebar_open(false)
-            }
-        }
-
-        window.addEventListener('keydown', handle_key_down)
-        return () => window.removeEventListener('keydown', handle_key_down)
-    }, [is_sidebar_open])
-
     const handle_restart_sentence = () => {
         if (feedback_timeout.current !== null) {
             window.clearTimeout(feedback_timeout.current)
@@ -957,6 +1300,7 @@ function App() {
         set_feedback_japanese('')
         set_feedback_state(null)
         set_is_locked(false)
+        open_level_intro(previous_level)
     }
 
     const handle_next_level = () => {
@@ -979,6 +1323,7 @@ function App() {
         set_feedback_japanese('')
         set_feedback_state(null)
         set_is_locked(false)
+        open_level_intro(next_level)
     }
 
     const handle_select_level = (level_index: number) => {
@@ -1006,6 +1351,7 @@ function App() {
         set_feedback_state(null)
         set_is_locked(false)
         set_is_sidebar_open(false)
+        open_level_intro(selected_level)
     }
 
     const handle_replay_level = () => {
@@ -1031,6 +1377,7 @@ function App() {
         set_feedback_japanese('')
         set_feedback_state(null)
         set_is_locked(false)
+        open_level_intro(active_level)
     }
 
     const handle_reset_progress = () => {
@@ -1054,10 +1401,24 @@ function App() {
         set_feedback_state(null)
         set_is_locked(false)
         set_is_sidebar_open(false)
+        open_level_intro(first_level)
+    }
+
+    const handle_stop_intro = () => {
+        cancel_intro_sequence()
+    }
+
+    const handle_continue_intro = () => {
+        cancel_intro_sequence()
+        set_is_level_intro(false)
     }
 
     if (levels.length === 0) {
         return <EmptyCurriculum />
+    }
+
+    if (!has_started) {
+        return <WelcomeScreen on_start={handle_start} />
     }
 
     return (
@@ -1080,7 +1441,16 @@ function App() {
                     on_toggle_sidebar={() => set_is_sidebar_open((current_state) => !current_state)}
                 />
 
-                {is_level_complete ? (
+                {is_level_intro ? (
+                    <LevelIntro
+                        active_language={intro_language}
+                        active_sentence_index={intro_active_index}
+                        level={active_level}
+                        on_continue={handle_continue_intro}
+                        on_stop={handle_stop_intro}
+                        sentence_order={intro_sentence_order}
+                    />
+                ) : is_level_complete ? (
                     <LevelComplete
                         has_next_level={active_level_index < levels.length - 1}
                         level_index={active_level_index}
@@ -1100,16 +1470,24 @@ function App() {
                                 <ArrowLeft size={19} />
                             </button>
                             <h1 className="px-14 text-[clamp(1.65rem,3.5vw,3rem)] font-semibold leading-tight tracking-[-0.035em] text-white">
-                                {english_sentence_parts.map((part, part_index) => (
-                                    <span
-                                        className={`transition-colors duration-150 ${
-                                            part.is_complete ? 'text-sky-300' : ''
-                                        }`}
-                                        key={`${part.text}-${part_index}`}
-                                    >
-                                        {part.text}
-                                    </span>
-                                ))}
+                                <button
+                                    aria-label="英語の文を聞く"
+                                    className="disabled:cursor-default"
+                                    disabled={!can_play_english_sentence_audio}
+                                    onClick={() => play_english_audio(active_sentence.id)}
+                                    type="button"
+                                >
+                                    {english_sentence_parts.map((part, part_index) => (
+                                        <span
+                                            className={`transition-colors duration-150 ${
+                                                part.is_complete ? 'text-violet-200' : ''
+                                            }`}
+                                            key={`${part.text}-${part_index}`}
+                                        >
+                                            {part.text}
+                                        </span>
+                                    ))}
+                                </button>
                             </h1>
                             <button
                                 aria-label="文を最初からやり直す"
@@ -1125,7 +1503,7 @@ function App() {
                             <SentenceBuilder
                                 current_chunk_index={current_chunk_index}
                                 is_audio_available={can_play_sentence_audio}
-                                on_play_audio={() => play_audio(active_sentence_text)}
+                                on_play_audio={play_japanese_audio}
                                 sentence={active_sentence}
                             />
                             <ChunkProgress
