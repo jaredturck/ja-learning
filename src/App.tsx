@@ -747,11 +747,13 @@ function WelcomeScreen({ on_start }: { on_start: () => void }) {
     )
 }
 
-function LevelIntro({ level, sentence_order, active_sentence_index, active_language, on_stop, on_continue }: {
+function LevelIntro({ level, sentence_order, active_sentence_index, active_language, is_ready, on_play_sentence, on_stop, on_continue }: {
     level: QuizLevel
     sentence_order: number[]
     active_sentence_index: number | null
     active_language: 'japanese' | 'english' | null
+    is_ready: boolean
+    on_play_sentence: (order_index: number) => void
     on_stop: () => void
     on_continue: () => void
 }) {
@@ -792,11 +794,17 @@ function LevelIntro({ level, sentence_order, active_sentence_index, active_langu
                                     sentence_refs.current[order_index] = element
                                 }}
                             >
-                                <p className={`font-japanese text-2xl font-medium leading-relaxed transition-colors duration-150 sm:text-3xl ${
-                                    is_japanese_active ? 'text-violet-200' : 'text-slate-100'
-                                }`}>
+                                <button
+                                    aria-label={`${get_japanese_sentence(sentence)}を聞く`}
+                                    className={`font-japanese w-full text-left text-2xl font-medium leading-relaxed transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-400 sm:text-3xl ${
+                                        is_japanese_active ? 'text-violet-200' : 'text-slate-100'
+                                    } ${is_ready ? '' : 'cursor-default'}`}
+                                    disabled={!is_ready}
+                                    onClick={() => on_play_sentence(order_index)}
+                                    type="button"
+                                >
                                     {get_japanese_sentence(sentence)}
-                                </p>
+                                </button>
                                 <p className={`mt-1 text-lg leading-relaxed transition-colors duration-150 sm:text-xl ${
                                     is_english_active ? 'text-violet-200' : 'text-slate-400'
                                 }`}>
@@ -810,7 +818,11 @@ function LevelIntro({ level, sentence_order, active_sentence_index, active_langu
 
             <div className="shrink-0 border-t border-slate-800 pt-4 sm:pt-5">
                 <button
-                    className="w-full rounded-2xl bg-violet-500 px-8 py-4 text-base font-semibold text-white transition hover:bg-violet-400 active:scale-[0.98]"
+                    className={`w-full rounded-2xl px-8 py-4 text-base font-semibold text-white transition active:scale-[0.98] ${
+                        is_ready
+                            ? 'bg-violet-500 hover:bg-violet-400'
+                            : 'bg-slate-700 hover:bg-slate-600'
+                    }`}
                     onClick={on_continue}
                     type="button"
                 >
@@ -844,6 +856,7 @@ function App() {
     const [intro_active_index, set_intro_active_index] = useState<number | null>(null)
     const [intro_language, set_intro_language] = useState<'japanese' | 'english' | null>(null)
     const [intro_playback_requested, set_intro_playback_requested] = useState(false)
+    const [is_intro_ready, set_is_intro_ready] = useState(false)
     const [japanese_audio_index, set_japanese_audio_index] = useState<AudioIndex | null>(null)
     const [english_audio_index, set_english_audio_index] = useState<AudioIndex | null>(null)
     const [is_japanese_level_audio_ready, set_is_japanese_level_audio_ready] = useState(false)
@@ -910,6 +923,7 @@ function App() {
     const open_level_intro = (level: QuizLevel) => {
         cancel_intro_sequence()
         set_intro_sentence_order(shuffle_items(level.sentences.map((_, index) => index)))
+        set_is_intro_ready(false)
         set_is_level_intro(true)
         set_intro_playback_requested(true)
     }
@@ -990,6 +1004,7 @@ function App() {
         if (!intro_sentence) {
             set_intro_active_index(null)
             set_intro_language(null)
+            set_is_intro_ready(true)
             return
         }
 
@@ -1016,6 +1031,7 @@ function App() {
                         set_intro_language(null)
 
                         if (order_index >= shuffled_sentence_order.length - 1) {
+                            set_is_intro_ready(true)
                             return
                         }
 
@@ -1406,6 +1422,45 @@ function App() {
 
     const handle_stop_intro = () => {
         cancel_intro_sequence()
+        set_is_intro_ready(true)
+    }
+
+    const handle_play_intro_sentence = (order_index: number) => {
+        if (!is_intro_ready) {
+            return
+        }
+
+        const sentence_index = intro_sentence_order[order_index]
+        const intro_sentence = active_level.sentences[sentence_index]
+
+        if (!intro_sentence) {
+            return
+        }
+
+        const sequence_token = intro_sequence_token.current + 1
+        intro_sequence_token.current = sequence_token
+        clear_intro_pause()
+        stop_audio()
+        set_intro_active_index(order_index)
+        set_intro_language('japanese')
+
+        const japanese_started = play_japanese_audio(
+            get_japanese_sentence(intro_sentence),
+            () => {
+                if (intro_sequence_token.current !== sequence_token) {
+                    return
+                }
+
+                set_intro_active_index(null)
+                set_intro_language(null)
+            },
+            active_level.id,
+        )
+
+        if (!japanese_started) {
+            set_intro_active_index(null)
+            set_intro_language(null)
+        }
     }
 
     const handle_continue_intro = () => {
@@ -1445,8 +1500,10 @@ function App() {
                     <LevelIntro
                         active_language={intro_language}
                         active_sentence_index={intro_active_index}
+                        is_ready={is_intro_ready}
                         level={active_level}
                         on_continue={handle_continue_intro}
+                        on_play_sentence={handle_play_intro_sentence}
                         on_stop={handle_stop_intro}
                         sentence_order={intro_sentence_order}
                     />
