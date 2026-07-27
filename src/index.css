@@ -32,10 +32,6 @@ body {
     min-width: 320px;
 }
 
-button {
-    font: inherit;
-}
-
 .bg-app {
     background:
         radial-gradient(circle at 50% -20%, rgb(124 58 237 / 0.18), transparent 34rem),
