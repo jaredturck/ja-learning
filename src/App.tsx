@@ -694,11 +694,21 @@ function ReinforcementModal({ chunk, on_close }: {
 }) {
     const [counter, set_counter] = useState(0)
     const [options, set_options] = useState(() => get_sentence_options(chunk))
+    const [wrong_option, set_wrong_option] = useState<string | null>(null)
 
     const handle_select_option = (option: QuizOption) => {
+        if (wrong_option) {
+            return
+        }
+
         if (!option.is_correct) {
             set_counter(0)
-            set_options(get_sentence_options(chunk))
+            set_wrong_option(option.japanese)
+
+            window.setTimeout(() => {
+                set_wrong_option(null)
+                set_options(get_sentence_options(chunk))
+            }, 2000)
             return
         }
 
@@ -739,22 +749,34 @@ function ReinforcementModal({ chunk, on_close }: {
             </div>
 
             <div className="mt-6 grid min-h-0 flex-1 grid-cols-2 gap-3 sm:mt-8 sm:gap-4">
-                {options.map((option) => (
-                    <button
-                        aria-label={`選択肢：${option.japanese}`}
-                        className="min-h-0 min-w-0 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/85 px-3 text-slate-100 transition duration-150 hover:border-violet-500 hover:bg-slate-900 active:scale-[0.985] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 sm:rounded-3xl sm:px-6"
-                        key={option.japanese}
-                        onClick={() => handle_select_option(option)}
-                        type="button"
-                    >
-                        <span
-                            className="font-japanese block break-all font-medium leading-tight tracking-tight"
-                            style={{ fontSize: get_option_text_size(option.japanese) }}
+                {options.map((option) => {
+                    const is_wrong_option = option.japanese === wrong_option
+                    const is_correct_option = Boolean(wrong_option) && option.is_correct
+
+                    return (
+                        <button
+                            aria-label={`選択肢：${option.japanese}`}
+                            className={`min-h-0 min-w-0 overflow-hidden rounded-2xl border px-3 transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 sm:rounded-3xl sm:px-6 ${
+                                is_correct_option
+                                    ? 'border-emerald-400 bg-emerald-400/12 text-emerald-200'
+                                    : is_wrong_option
+                                        ? 'border-red-400 bg-red-400/12 text-red-200'
+                                        : 'border-slate-700 bg-slate-900/85 text-slate-100 hover:border-violet-500 hover:bg-slate-900 active:scale-[0.985]'
+                            }`}
+                            disabled={Boolean(wrong_option)}
+                            key={option.japanese}
+                            onClick={() => handle_select_option(option)}
+                            type="button"
                         >
-                            {option.japanese}
-                        </span>
-                    </button>
-                ))}
+                            <span
+                                className="font-japanese block break-all font-medium leading-tight tracking-tight"
+                                style={{ fontSize: get_option_text_size(option.japanese) }}
+                            >
+                                {option.japanese}
+                            </span>
+                        </button>
+                    )
+                })}
             </div>
         </div>
     )
