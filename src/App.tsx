@@ -688,6 +688,78 @@ function OptionGrid({ options, feedback_japanese, feedback_state, is_locked, on_
     )
 }
 
+function ReinforcementModal({ chunk, on_close }: {
+    chunk: SentenceChunk
+    on_close: () => void
+}) {
+    const [counter, set_counter] = useState(0)
+    const [options, set_options] = useState(() => get_sentence_options(chunk))
+
+    const handle_select_option = (option: QuizOption) => {
+        if (!option.is_correct) {
+            set_counter(0)
+            set_options(get_sentence_options(chunk))
+            return
+        }
+
+        const next_counter = counter + 1
+
+        if (next_counter === 5) {
+            on_close()
+            return
+        }
+
+        set_counter(next_counter)
+        set_options(get_sentence_options(chunk))
+    }
+
+    return (
+        <div
+            aria-labelledby="reinforcement-title"
+            aria-modal="true"
+            className="fixed inset-3 z-50 flex flex-col rounded-3xl border border-slate-700 bg-slate-950 p-4 shadow-2xl shadow-black/60 sm:inset-6 sm:p-8"
+            role="dialog"
+        >
+            <button
+                aria-label="Close"
+                className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700 text-slate-400 transition hover:border-slate-600 hover:text-white sm:right-6 sm:top-6"
+                onClick={on_close}
+                type="button"
+            >
+                <X size={19} />
+            </button>
+
+            <div className="flex shrink-0 flex-col items-center px-14 text-center">
+                <p className="text-5xl font-semibold tabular-nums text-violet-300 sm:text-6xl">
+                    {counter}
+                </p>
+                <p className="mt-4 text-xl font-semibold text-white sm:text-2xl" id="reinforcement-title">
+                    Select the option for {chunk.english}.
+                </p>
+            </div>
+
+            <div className="mt-6 grid min-h-0 flex-1 grid-cols-2 gap-3 sm:mt-8 sm:gap-4">
+                {options.map((option) => (
+                    <button
+                        aria-label={`選択肢：${option.japanese}`}
+                        className="min-h-0 min-w-0 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/85 px-3 text-slate-100 transition duration-150 hover:border-violet-500 hover:bg-slate-900 active:scale-[0.985] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 sm:rounded-3xl sm:px-6"
+                        key={option.japanese}
+                        onClick={() => handle_select_option(option)}
+                        type="button"
+                    >
+                        <span
+                            className="font-japanese block break-all font-medium leading-tight tracking-tight"
+                            style={{ fontSize: get_option_text_size(option.japanese) }}
+                        >
+                            {option.japanese}
+                        </span>
+                    </button>
+                ))}
+            </div>
+        </div>
+    )
+}
+
 function LevelComplete({ level_index, has_next_level, on_continue, on_replay }: {
     level_index: number
     has_next_level: boolean
@@ -856,6 +928,7 @@ function App() {
     const [sentence_order_index, set_sentence_order_index] = useState(0)
     const [current_chunk_index, set_current_chunk_index] = useState(0)
     const [options, set_options] = useState<QuizOption[]>([])
+    const [reinforcement_chunk, set_reinforcement_chunk] = useState<SentenceChunk | null>(null)
     const [feedback_japanese, set_feedback_japanese] = useState('')
     const [feedback_state, set_feedback_state] = useState<'correct' | 'wrong' | 'complete' | null>(null)
     const [is_locked, set_is_locked] = useState(false)
@@ -1249,6 +1322,7 @@ function App() {
 
         if (!option.is_correct) {
             set_feedback_state('wrong')
+            set_reinforcement_chunk(active_sentence.chunks[current_chunk_index])
 
             feedback_timeout.current = window.setTimeout(() => {
                 set_current_chunk_index(0)
@@ -1590,6 +1664,13 @@ function App() {
                     </>
                 ) : null}
             </main>
+
+            {reinforcement_chunk ? (
+                <ReinforcementModal
+                    chunk={reinforcement_chunk}
+                    on_close={() => set_reinforcement_chunk(null)}
+                />
+            ) : null}
         </div>
     )
 }
