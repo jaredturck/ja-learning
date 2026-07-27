@@ -796,14 +796,25 @@ function LevelIntro({ level, sentence_order, active_sentence_index, active_langu
                             >
                                 <button
                                     aria-label={`${get_japanese_sentence(sentence)}を聞く`}
-                                    className={`font-japanese w-full text-left text-2xl font-medium leading-relaxed transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-400 sm:text-3xl ${
-                                        is_japanese_active ? 'text-violet-200' : 'text-slate-100'
-                                    } ${is_ready ? '' : 'cursor-default'}`}
+                                    className={`font-japanese w-full text-left text-4xl font-medium leading-relaxed transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-400 sm:text-5xl ${
+                                        is_ready ? '' : 'cursor-default'
+                                    }`}
                                     disabled={!is_ready}
                                     onClick={() => on_play_sentence(order_index)}
                                     type="button"
                                 >
-                                    {get_japanese_sentence(sentence)}
+                                    {sentence.chunks.map((chunk, chunk_index) => (
+                                        <span
+                                            className={is_japanese_active
+                                                ? 'text-violet-200'
+                                                : chunk_index % 2 === 0
+                                                    ? 'text-slate-100'
+                                                    : 'text-sky-200'}
+                                            key={`${sentence.id}-${chunk_index}`}
+                                        >
+                                            {chunk.japanese}
+                                        </span>
+                                    ))}
                                 </button>
                                 <p className={`mt-1 text-lg leading-relaxed transition-colors duration-150 sm:text-xl ${
                                     is_english_active ? 'text-violet-200' : 'text-slate-400'
